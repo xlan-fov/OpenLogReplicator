@@ -1,21 +1,14 @@
-/* Definition of type Scn
-   Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
-
-This file is part of OpenLogReplicator.
-
-OpenLogReplicator is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License as published
-by the Free Software Foundation; either version 3, or (at your option)
-any later version.
-
-OpenLogReplicator is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
-Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with OpenLogReplicator; see the file LICENSE;  If not see
-<http://www.gnu.org/licenses/>.  */
+/**
+ * SCN(系统变更号)类型定义
+ * 
+ * 该文件定义了Scn类，表示Oracle数据库中的系统变更号。
+ * SCN是Oracle中唯一标识数据库变更的数字，按严格递增顺序分配。
+ *
+ * @file Scn.h
+ * @author Adam Leszczynski (aleszczynski@bersler.com)
+ * @copyright Copyright (C) 2018-2025 Adam Leszczynski
+ * @license GPL-3.0
+ */
 
 #ifndef SCN_H_
 #define SCN_H_
@@ -24,24 +17,46 @@ along with OpenLogReplicator; see the file LICENSE;  If not see
 #include <ostream>
 
 namespace OpenLogReplicator {
+    /**
+     * SCN(系统变更号)类 - 表示Oracle数据库中的系统变更号
+     */
     class Scn final {
-        uint64_t data{0};
-        static constexpr uint64_t NONE{0xFFFFFFFFFFFFFFFF};
+        uint64_t data{0};                  // SCN数据
+        static constexpr uint64_t NONE{0xFFFFFFFFFFFFFFFF}; // 表示无效SCN的常量
 
     public:
+        /** 默认构造函数 */
         Scn() = default;
 
+        /**
+         * 获取表示"无"的SCN值
+         * 
+         * @return 无效SCN
+         */
         static Scn none() {
             return Scn(NONE);
         }
 
+        /**
+         * 获取零SCN值
+         * 
+         * @return 零SCN
+         */
         static Scn zero() {
             return Scn{};
         }
 
+        /**
+         * 从64位整数构造SCN
+         * 
+         * @param newData SCN值
+         */
         explicit Scn(uint64_t newData) : data(newData) {
         }
 
+        /**
+         * 从8个字节构造SCN
+         */
         explicit Scn(uint8_t newByte0, uint8_t newByte1, uint8_t newByte2, uint8_t newByte3, uint8_t newByte4, uint8_t newByte5, uint8_t newByte6,
                      uint8_t newByte7) :
                 data(static_cast<uint64_t>(newByte0) | (static_cast<uint64_t>(newByte1) << 8) |
@@ -50,16 +65,23 @@ namespace OpenLogReplicator {
                         (static_cast<uint64_t>(newByte6) << 48) | (static_cast<uint64_t>(newByte7) << 56)) {
         }
 
+        /**
+         * 从6个字节构造SCN
+         */
         explicit Scn(uint8_t newByte0, uint8_t newByte1, uint8_t newByte2, uint8_t newByte3, uint8_t newByte4, uint8_t newByte5) :
                 data(static_cast<uint64_t>(newByte0) | (static_cast<uint64_t>(newByte1) << 8) |
                         (static_cast<uint64_t>(newByte2) << 16) | (static_cast<uint64_t>(newByte3) << 24) |
                         (static_cast<uint64_t>(newByte4) << 32) | (static_cast<uint64_t>(newByte5) << 40)) {
         }
 
+        /**
+         * 从两个32位整数构造SCN
+         */
         explicit Scn(uint32_t newData0, uint32_t newData1) :
                 data((static_cast<uint64_t>(newData0) << 32) | newData1) {
         }
 
+        /** 析构函数 */
         ~Scn() = default;
 
         [[nodiscard]] std::string to48() const {
@@ -102,26 +124,44 @@ namespace OpenLogReplicator {
             return this->data;
         }
 
+        /**
+         * 比较相等运算符
+         */
         bool operator==(const Scn other) const {
             return data == other.data;
         }
 
+        /**
+         * 比较不等运算符
+         */
         bool operator!=(const Scn other) const {
             return data != other.data;
         }
 
+        /**
+         * 小于比较运算符
+         */
         bool operator<(const Scn other) const {
             return data < other.data;
         }
 
+        /**
+         * 小于等于比较运算符
+         */
         bool operator<=(const Scn other) const {
             return data <= other.data;
         }
 
+        /**
+         * 大于比较运算符
+         */
         bool operator>(const Scn other) const {
             return data > other.data;
         }
 
+        /**
+         * 大于等于比较运算符
+         */
         bool operator>=(const Scn other) const {
             return data >= other.data;
         }

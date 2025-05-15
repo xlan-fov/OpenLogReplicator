@@ -1,4 +1,4 @@
-/* Header for StreamZeroMQ class
+/* ZeroMQ通信流处理类
    Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 
 This file is part of OpenLogReplicator.
@@ -17,32 +17,39 @@ You should have received a copy of the GNU General Public License
 along with OpenLogReplicator; see the file LICENSE;  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#ifndef STREAM_ZERO_MQ_H_
-#define STREAM_ZERO_MQ_H_
+#ifndef STREAM_ZEROMQ_H_
+#define STREAM_ZEROMQ_H_
 
 #include "Stream.h"
 
+#ifdef LINK_LIBRARY_ZEROMQ
+#include <zmq.h>
+
 namespace OpenLogReplicator {
-    class StreamZeroMQ final : public Stream {
+    // ZeroMQ流通信类 - 处理基于ZeroMQ库的消息传递
+    class StreamZeroMQ : public Stream {
     protected:
-        void* socket{nullptr};
-        void* context{nullptr};
+        std::string uri;           // 服务器URI地址
+        void* context;             // ZeroMQ上下文
+        void* socket;              // ZeroMQ套接字
 
     public:
-        StreamZeroMQ(Ctx* newCtx, std::string newUri);
+        // 构造与析构
+        StreamZeroMQ(Ctx* newCtx, const char* newUri);
         ~StreamZeroMQ() override;
-        StreamZeroMQ(const StreamZeroMQ&) = delete;
-        StreamZeroMQ& operator=(const StreamZeroMQ&) = delete;
 
+        // 初始化方法
         void initialize() override;
-        [[nodiscard]] std::string getName() const override;
-        void initializeClient() override;
         void initializeServer() override;
-        void sendMessage(const void* msg, uint64_t length) override;
-        uint64_t receiveMessage(void* msg, uint64_t length) override;
-        uint64_t receiveMessageNB(void* msg, uint64_t length) override;
-        [[nodiscard]] bool isConnected() override;
+        void initializeClient() override;
+
+        // ZeroMQ消息传输方法
+        void sendMessage(const char* buffer, uint64_t length) override;
+        uint64_t receiveMessage(uint8_t* buffer, uint64_t maxLength) override;
+        void receiveMessageAll(uint8_t* buffer, uint64_t length) override;
+        void clientDisconnect() override;
     };
 }
 
+#endif /* LINK_LIBRARY_ZEROMQ */
 #endif

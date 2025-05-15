@@ -17,6 +17,17 @@ You should have received a copy of the GNU General Public License
 along with OpenLogReplicator; see the file LICENSE;  If not see
 <http://www.gnu.org/licenses/>.  */
 
+/**
+ * JSON格式序列化器实现
+ * 
+ * 该文件实现了SerializerJson类，用于将元数据结构序列化为JSON格式，
+ * 以及从JSON格式反序列化为元数据结构。主要用于数据库元数据的持久化和恢复。
+ *
+ * @file SerializerJson.cpp
+ * @author Adam Leszczynski (aleszczynski@bersler.com)
+ * @copyright Copyright (C) 2018-2025 Adam Leszczynski
+ * @license GPL-3.0
+ */
 #include "../common/Ctx.h"
 #include "../common/DbIncarnation.h"
 #include "../common/DbTable.h"
@@ -49,22 +60,33 @@ along with OpenLogReplicator; see the file LICENSE;  If not see
 #include "SerializerJson.h"
 
 namespace OpenLogReplicator {
+    /**
+     * 将元数据序列化为JSON格式
+     * 
+     * @param metadata 要序列化的元数据对象
+     * @param ss 输出流
+     * @param storeSchema 是否存储完整的schema信息
+     */
     void SerializerJson::serialize(Metadata* metadata, std::ostringstream& ss, bool storeSchema) {
-        // Assuming the caller holds all locks
+        // 假设调用者已持有所有锁
         ss << R"({"database":")";
         Data::writeEscapeValue(ss, metadata->database);
         ss << R"(","scn":)" << metadata->checkpointScn.toString() <<
            R"(,"resetlogs":)" << std::dec << metadata->resetlogs <<
            R"(,"activation":)" << std::dec << metadata->activation <<
-           R"(,"time":)" << std::dec << metadata->checkpointTime.getVal() << // not read
+           R"(,"time":)" << std::dec << metadata->checkpointTime.getVal() << // 未读取
            R"(,"seq":)" << metadata->checkpointSequence.toString() <<
            R"(,"offset":)" << metadata->checkpointFileOffset.toString();
+        
+        // 添加最小事务信息(如果存在)
         if (metadata->minSequence != Seq::none()) {
             ss << R"(,"min-tran":{)" <<
                R"("seq":)" << metadata->minSequence.toString() <<
                R"(,"offset":)" << metadata->minFileOffset.toString() <<
                R"(,"xid":")" << metadata->minXid.toString() << R"("})";
         }
+        
+        // 添加数据库和系统参数
         ss << R"(,"big-endian":)" << std::dec << (metadata->ctx->isBigEndian() ? 1 : 0) <<
            R"(,"context":")";
         Data::writeEscapeValue(ss, metadata->context);
@@ -86,10 +108,12 @@ namespace OpenLogReplicator {
         ss << R"(",)" << R"("nls-nchar-character-set":")";
         Data::writeEscapeValue(ss, metadata->nlsNcharCharacterSet);
 
+        // 添加补充日志信息
         ss << R"(","supp-log-db-primary":)" << (metadata->suppLogDbPrimary ? 1 : 0) <<
            R"(,"supp-log-db-all":)" << (metadata->suppLogDbAll ? 1 : 0) <<
            R"(,)" SERIALIZER_ENDL << R"("online-redo":[)";
 
+        // 序列化在线重做日志信息
         int64_t prevGroup = -2;
         for (const RedoLog* redoLog: metadata->redoLogs) {
             if (redoLog->group == 0)
@@ -111,6 +135,7 @@ namespace OpenLogReplicator {
         if (prevGroup > 0)
             ss << "]}";
 
+        // 序列化数据库incarnation信息
         ss << "]," SERIALIZER_ENDL << R"("incarnations":[)";
         bool hasPrev = false;
         for (const DbIncarnation* oi: metadata->dbIncarnations) {
@@ -127,6 +152,7 @@ namespace OpenLogReplicator {
                R"(,"prior-incarnation":)" << oi->priorIncarnation << "}";
         }
 
+        // 序列化用户信息
         ss << "]," SERIALIZER_ENDL << R"("users":[)";
         hasPrev = false;
         for (const std::string& user: metadata->users) {
@@ -139,16 +165,17 @@ namespace OpenLogReplicator {
 
         ss << "]," SERIALIZER_ENDL;
 
-        // The schema has not changed since the last checkpoint file
+        // 如果自上次检查点文件以来schema未发生变化，则只添加引用
         if (!storeSchema) {
             ss << R"("schema-ref-scn":)" << metadata->schema->refScn.toString() << "}";
             return;
         }
 
+        // 设置schema参考SCN并序列化完整schema
         metadata->schema->refScn = metadata->checkpointScn;
         ss << R"("schema-scn":)" << metadata->schema->scn.toString() << "," SERIALIZER_ENDL;
 
-        // SYS.CCOL$
+        // 序列化SYS.CCOL$表信息
         ss << R"("sys-ccol":[)";
         hasPrev = false;
         for (const auto& [_,sysCCol]: metadata->schema->sysCColPack.mapRowId) {
@@ -164,7 +191,7 @@ namespace OpenLogReplicator {
                                R"(,"spare1":)" << std::dec << sysCCol->spare1.toString() << "}";
         }
 
-        // SYS.CDEF$
+        // 序列化SYS.CDEF$表信息
         ss << "]," SERIALIZER_ENDL << R"("sys-cdef":[)";
         hasPrev = false;
         for (const auto& [_, sysCDef]: metadata->schema->sysCDefPack.mapRowId) {
@@ -374,7 +401,7 @@ namespace OpenLogReplicator {
 
             ss SERIALIZER_ENDL << R"({"row-id":")" << sysTs->rowId <<
                                R"(","ts":)" << std::dec << sysTs->ts <<
-                               R"(,"name":")";
+                               R"(","name":")";
             Data::writeEscapeValue(ss, sysTs->name);
             ss << R"(","block-size":)" << std::dec << sysTs->blockSize << "}";
         }
@@ -390,7 +417,7 @@ namespace OpenLogReplicator {
 
             ss SERIALIZER_ENDL << R"({"row-id":")" << sysUser->rowId <<
                                R"(","user":)" << std::dec << sysUser->user <<
-                               R"(,"name":")";
+                               R"(","name":")";
             Data::writeEscapeValue(ss, sysUser->name);
             ss << R"(","spare1":)" << std::dec << sysUser->spare1.toString() <<
                R"(,"single":)" << std::dec << static_cast<uint>(sysUser->single) << "}";
@@ -467,15 +494,29 @@ namespace OpenLogReplicator {
         ss << "]}";
     }
 
+    /**
+     * 从JSON反序列化元数据
+     * 
+     * @param metadata 目标元数据对象
+     * @param ss JSON字符串
+     * @param fileName 文件名(用于错误报告)
+     * @param msgs 错误/警告消息输出
+     * @param tablesUpdated 更新的表映射
+     * @param loadMetadata 是否加载元数据
+     * @param loadSchema 是否加载schema
+     * @return 反序列化是否成功
+     */
     bool SerializerJson::deserialize(Metadata* metadata, const std::string& ss, const std::string& fileName, std::vector<std::string>& msgs,
                                      std::unordered_map<typeObj, std::string>& tablesUpdated, bool loadMetadata, bool loadSchema) {
         try {
+            // 解析JSON文档
             rapidjson::Document document;
             if (unlikely(ss.empty() || document.Parse(ss.c_str()).HasParseError()))
                 throw DataException(20001, "file: " + fileName + " offset: " + std::to_string(document.GetErrorOffset()) +
                                            " - parse error: " + GetParseError_En(document.GetParseError()));
 
 
+            // 验证JSON标签
             if (!metadata->ctx->isDisableChecksSet(Ctx::DISABLE_CHECKS::JSON_TAGS)) {
                 static const std::vector<std::string> documentChildNames {"scn", "min-tran", "seq", "offset", "database", "resetlogs", "activation", "time",
                                                                           "big-endian", "context", "con-id", "con-name", "db-timezone", "db-recovery-file-dest",
@@ -487,12 +528,17 @@ namespace OpenLogReplicator {
                                                                           "sys-tabsubpart", "sys-ts", "xdb-ttset"};
                 Ctx::checkJsonFields(fileName, document, documentChildNames);
             }
+            
+            // 获取元数据读写锁
             std::unique_lock<std::mutex> const lckCheckpoint(metadata->mtxCheckpoint);
             std::unique_lock<std::mutex> const lckSchema(metadata->mtxSchema);
 
+            // 加载元数据部分
             if (loadMetadata) {
+                // 提取基本元数据
                 metadata->checkpointScn = Ctx::getJsonFieldU64(fileName, document, "scn");
 
+                // 处理最小事务信息
                 if (document.HasMember("min-tran")) {
                     const rapidjson::Value& minTranJson = Ctx::getJsonFieldO(fileName, document, "min-tran");
                     if (!metadata->ctx->isDisableChecksSet(Ctx::DISABLE_CHECKS::JSON_TAGS)) {
@@ -507,10 +553,12 @@ namespace OpenLogReplicator {
                     metadata->fileOffset = FileOffset(Ctx::getJsonFieldU64(fileName, document, "offset"));
                 }
 
+                // 验证offset是否对齐到块大小
                 if (unlikely(!metadata->fileOffset.matchesBlockSize(Ctx::MIN_BLOCK_SIZE)))
                     throw DataException(20006, "file: " + fileName + " - invalid offset: " + metadata->fileOffset.toString() +
                                                " is not a multiplication of " + std::to_string(Ctx::MIN_BLOCK_SIZE));
 
+                // 初始化元数据字段
                 metadata->minSequence = Seq::none();
                 metadata->minFileOffset = FileOffset::zero();
                 metadata->minXid = Xid::zero();
@@ -520,8 +568,9 @@ namespace OpenLogReplicator {
                 metadata->lastCheckpointTime = 0;
                 metadata->lastCheckpointBytes = 0;
 
+                // 如果不是在线数据，加载数据库元数据
                 if (!metadata->onlineData) {
-                    // Database metadata
+                    // 数据库元数据
                     const std::string newDatabase = Ctx::getJsonFieldS(fileName, Ctx::JSON_PARAMETER_LENGTH, document, "database");
                     if (metadata->database.empty()) {
                         metadata->database = newDatabase;
@@ -623,16 +672,19 @@ namespace OpenLogReplicator {
                 }
             }
 
+            // 加载Schema部分
             if (loadSchema) {
-                // Schema referenced to other checkpoint file
+                // 如果Schema引用了其他检查点文件
                 if (document.HasMember("schema-ref-scn")) {
                     metadata->schema->scn = Scn::none();
                     metadata->schema->refScn = Ctx::getJsonFieldU64(fileName, document, "schema-ref-scn");
 
                 } else {
+                    // 从JSON加载完整的Schema
                     metadata->schema->scn = Ctx::getJsonFieldU64(fileName, document, "schema-scn");
                     metadata->schema->refScn = Scn::none();
 
+                    // 反序列化各种系统表信息
                     deserializeSysUser(metadata, fileName, Ctx::getJsonFieldA(fileName, document, "sys-user"));
                     deserializeSysObj(metadata, fileName, Ctx::getJsonFieldA(fileName, document, "sys-obj"));
                     deserializeSysCol(metadata, fileName, Ctx::getJsonFieldA(fileName, document, "sys-col"));
@@ -666,7 +718,7 @@ namespace OpenLogReplicator {
                     metadata->schema->touched = true;
                 }
 
-                // Loading schema from configuration file
+                // 从配置文件加载Schema
                 metadata->buildMaps(msgs, tablesUpdated);
                 metadata->schema->resetTouched();
                 metadata->schema->loaded = true;
@@ -679,23 +731,30 @@ namespace OpenLogReplicator {
         return true;
     }
 
+    // SYS.CCOL$表的反序列化方法
     void SerializerJson::deserializeSysCCol(Metadata* metadata, const std::string& fileName, const rapidjson::Value& sysCColJson) {
         for (rapidjson::SizeType i = 0; i < sysCColJson.Size(); ++i) {
+            // 验证JSON标签
             if (!metadata->ctx->isDisableChecksSet(Ctx::DISABLE_CHECKS::JSON_TAGS)) {
                 static const std::vector<std::string> sysCColChildNames {"row-id", "con", "int-col", "obj", "spare1"};
                 Ctx::checkJsonFields(fileName, sysCColJson[i], sysCColChildNames);
             }
 
+            // 提取字段
             const std::string rowIdStr = Ctx::getJsonFieldS(fileName, RowId::SIZE, sysCColJson[i], "row-id");
             const typeCon con = Ctx::getJsonFieldU32(fileName, sysCColJson[i], "con");
             const typeCol intCol = Ctx::getJsonFieldI16(fileName, sysCColJson[i], "int-col");
             const typeObj obj = Ctx::getJsonFieldU32(fileName, sysCColJson[i], "obj");
             const rapidjson::Value& spare1Json = Ctx::getJsonFieldA(fileName, sysCColJson[i], "spare1");
+            
+            // 检查spare1数组大小
             if (unlikely(spare1Json.Size() != 2))
                 throw DataException(20005, "file: " + fileName + " - spare1 should be an array with 2 elements");
+            
             const uint64_t spare11 = Ctx::getJsonFieldU64(fileName, spare1Json, "spare1", 0);
             const uint64_t spare12 = Ctx::getJsonFieldU64(fileName, spare1Json, "spare1", 1);
 
+            // 创建SysCCol对象并添加到Schema
             metadata->schema->sysCColPack.addWithKeys(metadata->ctx, new SysCCol(RowId(rowIdStr), con, intCol, obj, spare11, spare12));
             metadata->schema->touchTable(obj);
         }

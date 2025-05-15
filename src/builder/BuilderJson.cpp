@@ -29,41 +29,49 @@ namespace OpenLogReplicator {
     }
 
     void BuilderJson::columnFloat(const std::string& columnName, double value) {
+        // 如果已经有列输出，添加逗号分隔符
         if (hasPreviousColumn)
             append(',');
         else
             hasPreviousColumn = true;
 
+        // 构建JSON格式的列名
         append('"');
         appendEscape(columnName);
         append(std::string_view(R"(":)"));
 
+        // 将浮点值转换为字符串并添加到输出
         std::ostringstream ss;
         ss << value;
         append(ss.str());
     }
 
     void BuilderJson::columnDouble(const std::string& columnName, long double value) {
+        // 如果已经有列输出，添加逗号分隔符
         if (hasPreviousColumn)
             append(',');
         else
             hasPreviousColumn = true;
 
+        // 构建JSON格式的列名
         append('"');
         appendEscape(columnName);
         append(std::string_view(R"(":)"));
 
+        // 将双精度浮点值转换为字符串并添加到输出
         std::ostringstream ss;
         ss << value;
         append(ss.str());
     }
 
     void BuilderJson::columnString(const std::string& columnName) {
+        // 如果已经有列输出，添加逗号分隔符
         if (hasPreviousColumn)
             append(',');
         else
             hasPreviousColumn = true;
 
+        // 构建JSON格式的字符串列，包括列名和值
         append('"');
         appendEscape(columnName);
         append(std::string_view(R"(":")"));
@@ -72,11 +80,13 @@ namespace OpenLogReplicator {
     }
 
     void BuilderJson::columnNumber(const std::string& columnName, int precision __attribute__((unused)), int scale __attribute__((unused))) {
+        // 如果已经有列输出，添加逗号分隔符
         if (hasPreviousColumn)
             append(',');
         else
             hasPreviousColumn = true;
 
+        // 构建JSON格式的数字列
         append('"');
         appendEscape(columnName);
         append(std::string_view(R"(":)"));
@@ -84,11 +94,13 @@ namespace OpenLogReplicator {
     }
 
     void BuilderJson::columnRowId(const std::string& columnName, RowId rowId) {
+        // 如果已经有列输出，添加逗号分隔符
         if (hasPreviousColumn)
             append(',');
         else
             hasPreviousColumn = true;
 
+        // 构建JSON格式的RowID列
         append('"');
         appendEscape(columnName);
         append(std::string_view(R"(":")"));
@@ -99,6 +111,7 @@ namespace OpenLogReplicator {
     }
 
     void BuilderJson::columnRaw(const std::string& columnName, const uint8_t* data, uint64_t size) {
+        // 快速路径：如果有足够空间，使用优化版本的append方法
         if (likely(lastBuilderSize + messagePosition + size * 2 + columnName.size() * 3 + 8 < OUTPUT_BUFFER_DATA_SIZE)) {
             if (hasPreviousColumn)
                 append<true>(',');
@@ -112,6 +125,7 @@ namespace OpenLogReplicator {
                 appendHex2<true>(*(data + j));
             append<true>('"');
         } else {
+            // 慢速路径：如果空间不足，使用标准append方法
             if (hasPreviousColumn)
                 append(',');
             else

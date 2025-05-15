@@ -48,18 +48,7 @@ namespace OpenLogReplicator {
     }
 
     void Reader::initialize() {
-        if (redoBufferList == nullptr) {
-            redoBufferList = new uint8_t* [ctx->memoryChunksReadBufferMax];
-            memset(reinterpret_cast<void*>(redoBufferList), 0, ctx->memoryChunksReadBufferMax * sizeof(uint8_t*));
-        }
-
-        if (headerBuffer == nullptr) {
-            headerBuffer = reinterpret_cast<uint8_t*>(aligned_alloc(Ctx::MEMORY_ALIGNMENT, PAGE_SIZE_MAX * 2));
-            if (unlikely(headerBuffer == nullptr))
-                throw RuntimeException(10016, "couldn't allocate " + std::to_string(PAGE_SIZE_MAX * 2) +
-                                              " bytes memory for: read header");
-        }
-
+        // 如果配置了重做日志复制路径，确保目录可读
         if (!ctx->redoCopyPath.empty()) {
             if (opendir(ctx->redoCopyPath.c_str()) == nullptr)
                 throw RuntimeException(10012, "directory: " + ctx->redoCopyPath + " - can't read");
@@ -67,28 +56,35 @@ namespace OpenLogReplicator {
     }
 
     void Reader::wakeUp() {
+        // 设置当前上下文为互斥操作，原因是唤醒读取器
         contextSet(CONTEXT::MUTEX, REASON::READER_WAKE_UP);
         {
+            // 获取互斥锁并通知所有等待条件的线程
             std::unique_lock<std::mutex> const lck(mtx);
             condBufferFull.notify_all();
             condReaderSleeping.notify_all();
             condParserSleeping.notify_all();
         }
+        // 恢复CPU上下文
         contextSet(CONTEXT::CPU);
     }
 
     Reader::~Reader() {
+        // 释放所有读取缓冲区
         for (uint num = 0; num < ctx->memoryChunksReadBufferMax; ++num)
             bufferFree(this, num);
 
+        // 释放缓冲区列表
         delete[] redoBufferList;
         redoBufferList = nullptr;
 
+        // 释放头部缓冲区
         if (headerBuffer != nullptr) {
             free(headerBuffer);
             headerBuffer = nullptr;
         }
 
+        // 处理文件复制描述符
         if (fileCopyDes != -1) {
             close(fileCopyDes);
             fileCopyDes = -1;

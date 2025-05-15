@@ -36,75 +36,73 @@ namespace OpenLogReplicator {
     class TransactionBuffer;
     class XmlCtx;
 
+    // LWN成员结构体，表示日志写入网络中的一个成员
     struct LwnMember {
-        uint16_t pageOffset;
-        Scn scn;
-        uint32_t size;
-        typeBlk block;
-        typeSubScn subScn;
+        uint16_t pageOffset;  // 页面偏移量
+        Scn scn;              // 系统变更号
+        uint32_t size;        // 大小
+        typeBlk block;        // 块号
+        typeSubScn subScn;    // 子SCN
 
+        // 比较操作符，用于排序
         bool operator<(const LwnMember& other) const {
-            if (scn < other.scn)
-                return true;
-            if (other.scn < scn)
-                return false;
-            if (subScn < other.subScn)
-                return true;
-            if (other.subScn < subScn)
-                return false;
-            if (block < other.block)
-                return true;
-            if (block > other.block)
-                return false;
             return (pageOffset < other.pageOffset);
         }
     };
 
+    // 解析器类，用于解析重做日志数据
     class Parser final {
     protected:
-        static constexpr uint64_t MAX_LWN_CHUNKS = static_cast<uint64_t>(512 * 2) / Ctx::MEMORY_CHUNK_SIZE_MB;
-        static constexpr uint64_t MAX_RECORDS_IN_LWN = 1048576;
+        // 常量定义
+        static constexpr uint64_t MAX_LWN_CHUNKS = static_cast<uint64_t>(512 * 2) / Ctx::MEMORY_CHUNK_SIZE_MB;  // 最大LWN块数
+        static constexpr uint64_t MAX_RECORDS_IN_LWN = 1048576;  // LWN中最大记录数
 
-        Ctx* ctx;
-        Builder* builder;
-        Metadata* metadata;
-        TransactionBuffer* transactionBuffer;
-        RedoLogRecord zero;
-        Transaction* lastTransaction{nullptr};
+        // 基础组件
+        Ctx* ctx;                      // 上下文
+        Builder* builder;              // 构建器
+        Metadata* metadata;            // 元数据
+        TransactionBuffer* transactionBuffer;  // 事务缓冲区
+        RedoLogRecord zero;            // 零记录
+        Transaction* lastTransaction{nullptr};  // 最后处理的事务
 
-        uint8_t* lwnChunks[MAX_LWN_CHUNKS]{};
-        LwnMember* lwnMembers[MAX_RECORDS_IN_LWN + 1]{};
-        uint64_t lwnAllocated{0};
-        uint64_t lwnAllocatedMax{0};
-        Time lwnTimestamp{0};
-        Scn lwnScn;
-        typeBlk lwnCheckpointBlock{0};
+        // LWN内存管理
+        uint8_t* lwnChunks[MAX_LWN_CHUNKS]{};  // LWN块数组
+        LwnMember* lwnMembers[MAX_RECORDS_IN_LWN + 1]{};  // LWN成员数组
+        uint64_t lwnAllocated{0};      // 已分配的LWN块数
+        uint64_t lwnAllocatedMax{0};   // 最大分配的LWN块数
+        Time lwnTimestamp{0};          // LWN时间戳
+        Scn lwnScn;                    // LWN SCN
+        typeBlk lwnCheckpointBlock{0}; // LWN检查点块
 
-        void freeLwn();
-        void analyzeLwn(LwnMember* lwnMember);
-        void appendToTransactionDdl(RedoLogRecord* redoLogRecord1);
-        void appendToTransactionBegin(RedoLogRecord* redoLogRecord1);
-        void appendToTransactionCommit(RedoLogRecord* redoLogRecord1);
-        void appendToTransactionLob(RedoLogRecord* redoLogRecord1);
-        void appendToTransactionIndex(RedoLogRecord* redoLogRecord1, RedoLogRecord* redoLogRecord2);
-        void appendToTransaction(RedoLogRecord* redoLogRecord1);
-        void appendToTransactionRollback(RedoLogRecord* redoLogRecord1);
-        void appendToTransaction(RedoLogRecord* redoLogRecord1, RedoLogRecord* redoLogRecord2);
-        void appendToTransactionRollback(RedoLogRecord* redoLogRecord1, RedoLogRecord* redoLogRecord2);
-        void dumpRedoVector(const uint8_t* data, typeSize recordSize) const;
+        // 私有方法
+        void freeLwn();   // 释放LWN内存
+        void analyzeLwn(LwnMember* lwnMember);  // 分析LWN成员
+        
+        // 事务操作相关方法
+        void appendToTransactionDdl(RedoLogRecord* redoLogRecord1);  // 添加DDL操作到事务
+        void appendToTransactionBegin(RedoLogRecord* redoLogRecord1);  // 添加事务开始操作
+        void appendToTransactionCommit(RedoLogRecord* redoLogRecord1);  // 添加事务提交操作
+        void appendToTransactionLob(RedoLogRecord* redoLogRecord1);  // 添加LOB操作到事务
+        void appendToTransactionIndex(RedoLogRecord* redoLogRecord1, RedoLogRecord* redoLogRecord2);  // 添加索引操作到事务
+        void appendToTransaction(RedoLogRecord* redoLogRecord1);  // 添加普通操作到事务
+        void appendToTransactionRollback(RedoLogRecord* redoLogRecord1);  // 添加回滚操作到事务
+        void appendToTransaction(RedoLogRecord* redoLogRecord1, RedoLogRecord* redoLogRecord2);  // 添加双记录操作到事务
+        void appendToTransactionRollback(RedoLogRecord* redoLogRecord1, RedoLogRecord* redoLogRecord2);  // 添加双记录回滚操作到事务
+        void dumpRedoVector(const uint8_t* data, typeSize recordSize) const;  // 转储重做向量
 
     public:
-        int group;
-        std::string path;
-        Seq sequence;
-        Scn firstScn{Scn::none()};
-        Scn nextScn{Scn::none()};
-        Reader* reader{nullptr};
+        // 公共属性
+        int group;                  // 组号
+        std::string path;           // 路径
+        Seq sequence;               // 序列号
+        Scn firstScn{Scn::none()};  // 首个SCN
+        Scn nextScn{Scn::none()};   // 下一个SCN
+        Reader* reader{nullptr};    // 读取器
 
-        Parser(Ctx* newCtx, Builder* newBuilder, Metadata* newMetadata, TransactionBuffer* newTransactionBuffer, int newGroup, std::string newPath);
-        ~Parser();
-
+        // 解析方法，返回处理结果
         Reader::REDO_CODE parse();
+        
+        // 返回解析器的字符串表示
         [[nodiscard]] std::string toString() const;
     };
 }

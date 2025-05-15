@@ -88,21 +88,30 @@ namespace OpenLogReplicator {
 
     void Builder::processValue(LobCtx* lobCtx, const XmlCtx* xmlCtx, const DbTable* table, typeCol col, const uint8_t* data, uint32_t size,
                                FileOffset fileOffset, bool after, bool compressed) {
+        // 如果数据是压缩的，直接以RAW格式输出
         if (compressed) {
             const std::string columnName("COMPRESSED");
             columnRaw(columnName, data, size);
             return;
         }
+        
+        // 如果表对象为空，使用列号创建列名并以RAW格式输出
         if (unlikely(table == nullptr)) {
             const std::string columnName("COL_" + std::to_string(col));
             columnRaw(columnName, data, size);
             return;
         }
+        
+        // 获取列定义
         DbColumn* column = table->columns[col];
+        
+        // 如果配置为显示RAW列数据，以原始格式输出
         if (ctx->isFlagSet(Ctx::REDO_FLAGS::RAW_COLUMN_DATA)) {
             columnRaw(column->name, data, size);
             return;
         }
+        
+        // 检查各种列特性，并根据配置决定是否跳过
         if (column->guard && !ctx->isFlagSet(Ctx::REDO_FLAGS::SHOW_GUARD_COLUMNS))
             return;
         if (column->nested && !ctx->isFlagSet(Ctx::REDO_FLAGS::SHOW_NESTED_COLUMNS))
@@ -112,32 +121,38 @@ namespace OpenLogReplicator {
         if (column->unused && !ctx->isFlagSet(Ctx::REDO_FLAGS::SHOW_UNUSED_COLUMNS))
             return;
 
+        // 空数据检查
         if (unlikely(size == 0))
             throw RedoLogException(50013, "trying to output null data for column: " + column->name + ", offset: " + fileOffset.toString());
 
+        // 检查列是否存储为LOB(大对象)
         if (column->storedAsLob) {
             if (column->type == SysCol::COLTYPE::VARCHAR) {
-                // VARCHAR2 stored as CLOB
+                // VARCHAR2 存储为 CLOB
                 column->type = SysCol::COLTYPE::CLOB;
             } else if (column->type == SysCol::COLTYPE::RAW) {
-                // RAW stored as BLOB
+                // RAW 存储为 BLOB
                 column->type = SysCol::COLTYPE::BLOB;
             }
         }
 
+        // 根据列类型处理数据
         switch (column->type) {
             case SysCol::COLTYPE::VARCHAR:
             case SysCol::COLTYPE::CHAR:
+                // 解析字符串类型数据
                 parseString(data, size, column->charsetId, fileOffset, false, false, false, table->systemTable > DbTable::TABLE::NONE);
                 columnString(column->name);
                 break;
 
             case SysCol::COLTYPE::NUMBER:
+                // 解析数字类型数据
                 parseNumber(data, size, fileOffset);
                 columnNumber(column->name, column->precision, column->scale);
                 break;
 
             case SysCol::COLTYPE::BLOB:
+                // 处理BLOB类型，可能包含XML数据
                 if (after) {
                     if (parseLob(lobCtx, data, size, 0, table->obj, fileOffset, false, table->sys)) {
                         if (column->xmlType && ctx->isFlagSet(Ctx::REDO_FLAGS::EXPERIMENTAL_XMLTYPE)) {
@@ -152,12 +167,14 @@ namespace OpenLogReplicator {
                 break;
 
             case SysCol::COLTYPE::JSON:
+                // 处理JSON类型数据
                 if (ctx->isFlagSet(Ctx::REDO_FLAGS::EXPERIMENTAL_JSON))
                     if (parseLob(lobCtx, data, size, 0, table->obj, fileOffset, false, table->sys))
                         columnRaw(column->name, reinterpret_cast<const uint8_t*>(valueBuffer), valueSize);
                 break;
 
             case SysCol::COLTYPE::CLOB:
+                // 处理CLOB类型数据
                 if (after) {
                     if (parseLob(lobCtx, data, size, column->charsetId, table->obj, fileOffset, true, table->systemTable > DbTable::TABLE::NONE))
                         columnString(column->name);
@@ -2246,7 +2263,6 @@ namespace OpenLogReplicator {
 
                 valueBufferCheck(1, fileOffset);
                 valueBufferAppend('"');
-
                 continue;
             }
 

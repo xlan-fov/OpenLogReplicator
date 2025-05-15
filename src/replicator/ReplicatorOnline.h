@@ -31,53 +31,56 @@ namespace OpenLogReplicator {
 
     class ReplicatorOnline final : public Replicator {
     protected:
+        // SQL查询语句常量，用于从Oracle数据库获取归档日志列表
         static constexpr std::string_view SQL_GET_ARCHIVE_LOG_LIST
                 {"SELECT"
-                "   NAME"
-                ",  SEQUENCE#"
-                ",  FIRST_CHANGE#"
-                ",  NEXT_CHANGE#"
+                "   NAME"                   // 归档日志文件名
+                ",  SEQUENCE#"              // 序列号
+                ",  FIRST_CHANGE#"          // 起始SCN号
+                ",  NEXT_CHANGE#"           // 下一个SCN号
                 " FROM"
-                "   SYS.V_$ARCHIVED_LOG"
+                "   SYS.V_$ARCHIVED_LOG"    // 归档日志视图
                 " WHERE"
-                "   SEQUENCE# >= :i"
-                "   AND RESETLOGS_ID = :j"
-                "   AND NAME IS NOT NULL"
+                "   SEQUENCE# >= :i"        // 序列号大于等于参数
+                "   AND RESETLOGS_ID = :j"  // 重置日志ID等于参数
+                "   AND NAME IS NOT NULL"   // 文件名不为空
                 " ORDER BY"
-                "   SEQUENCE#"
-                ",  DEST_ID"
-                ",  IS_RECOVERY_DEST_FILE DESC"};
+                "   SEQUENCE#"              // 按序列号排序
+                ",  DEST_ID"                // 按目标ID排序
+                ",  IS_RECOVERY_DEST_FILE DESC"};  // 优先恢复目标文件
 
+        // SQL查询语句，获取数据库基本信息
         static constexpr std::string_view SQL_GET_DATABASE_INFORMATION
                 {"SELECT"
-                "   DECODE(D.LOG_MODE, 'ARCHIVELOG', 1, 0)"
-                ",  DECODE(D.SUPPLEMENTAL_LOG_DATA_MIN, 'NO', 0, 1)"
-                ",  DECODE(D.SUPPLEMENTAL_LOG_DATA_PK, 'YES', 1, 0)"
-                ",  DECODE(D.SUPPLEMENTAL_LOG_DATA_ALL, 'YES', 1, 0)"
-                ",  DECODE(TP.ENDIAN_FORMAT, 'Big', 1, 0)"
-                ",  VER.BANNER"
-                ",  SYS_CONTEXT('USERENV','DB_NAME')"
-                ",  CURRENT_SCN"
-                ",  DBTIMEZONE"
+                "   DECODE(D.LOG_MODE, 'ARCHIVELOG', 1, 0)"            // 是否归档模式
+                ",  DECODE(D.SUPPLEMENTAL_LOG_DATA_MIN, 'NO', 0, 1)"   // 是否启用最小补充日志
+                ",  DECODE(D.SUPPLEMENTAL_LOG_DATA_PK, 'YES', 1, 0)"   // 是否启用主键补充日志
+                ",  DECODE(D.SUPPLEMENTAL_LOG_DATA_ALL, 'YES', 1, 0)"  // 是否启用全部补充日志
+                ",  DECODE(TP.ENDIAN_FORMAT, 'Big', 1, 0)"             // 是否大端格式
+                ",  VER.BANNER"                                         // 数据库版本信息
+                ",  SYS_CONTEXT('USERENV','DB_NAME')"                  // 数据库名称
+                ",  CURRENT_SCN"                                        // 当前SCN
+                ",  DBTIMEZONE"                                         // 数据库时区
                 " FROM"
-                "   SYS.V_$DATABASE D"
+                "   SYS.V_$DATABASE D"                                  // 数据库视图
                 " JOIN"
-                "   SYS.V_$TRANSPORTABLE_PLATFORM TP ON"
+                "   SYS.V_$TRANSPORTABLE_PLATFORM TP ON"               // 可传输平台视图
                 "     TP.PLATFORM_NAME = D.PLATFORM_NAME"
                 " JOIN"
-                "   SYS.V_$VERSION VER ON"
+                "   SYS.V_$VERSION VER ON"                             // 版本视图
                 "     VER.BANNER LIKE '%Oracle Database%'"};
 
+        // SQL查询语句，获取数据库incarnation信息
         static constexpr std::string_view SQL_GET_DATABASE_INCARNATION
                 {"SELECT"
-                "   INCARNATION#"
-                ",  RESETLOGS_CHANGE#"
-                ",  PRIOR_RESETLOGS_CHANGE#"
-                ",  STATUS"
-                ",  RESETLOGS_ID"
-                ",  PRIOR_INCARNATION#"
+                "   INCARNATION#"           // incarnation号
+                ",  RESETLOGS_CHANGE#"      // 重置日志SCN号
+                ",  PRIOR_RESETLOGS_CHANGE#" // 前一次重置日志SCN号
+                ",  STATUS"                 // 状态
+                ",  RESETLOGS_ID"           // 重置日志ID
+                ",  PRIOR_INCARNATION#"     // 前一个incarnation号
                 " FROM"
-                "   SYS.V_$DATABASE_INCARNATION"};
+                "   SYS.V_$DATABASE_INCARNATION"}; // 数据库incarnation视图
 
         static constexpr std::string_view SQL_GET_DATABASE_ROLE
                 {"SELECT"

@@ -1,3 +1,4 @@
+# 构建配置文件
 # Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 #
 # This file is part of OpenLogReplicator.
@@ -16,6 +17,7 @@
 # along with OpenLogReplicator; see the file LICENSE;  If not see
 # <http://www.gnu.org/licenses/>.
 
+# 通用模块源文件列表
 list(APPEND ListCommon
         common/ClockHW.cpp
         common/Ctx.cpp
@@ -40,10 +42,12 @@ list(APPEND ListCommon
         common/metrics/Metrics.cpp
         common/types/Data.cpp)
 
+# 复制器模块源文件列表
 list(APPEND ListReplicator
         replicator/Replicator.cpp
         replicator/ReplicatorBatch.cpp)
 
+# 本地化模块源文件列表
 list(APPEND ListLocales
         locales/CharacterSet.cpp
         locales/CharacterSet16bit.cpp
@@ -64,20 +68,24 @@ list(APPEND ListLocales
         locales/CharacterSetZHT32TRIS.cpp
         locales/Locales.cpp)
 
+# 构建器模块源文件列表
 list(APPEND ListBuilder
         builder/Builder.cpp
         builder/BuilderJson.cpp
         builder/SystemTransaction.cpp)
 
+# 解析器模块源文件列表
 list(APPEND ListParser
         parser/Parser.cpp
         parser/Transaction.cpp
         parser/TransactionBuffer.cpp)
 
+# 读取器模块源文件列表
 list(APPEND ListReader
         reader/Reader.cpp
         reader/ReaderFilesystem.cpp)
 
+# 元数据模块源文件列表
 list(APPEND ListMetadata
         metadata/Checkpoint.cpp
         metadata/Metadata.cpp
@@ -85,15 +93,18 @@ list(APPEND ListMetadata
         metadata/Serializer.cpp
         metadata/SerializerJson.cpp)
 
+# 状态模块源文件列表
 list(APPEND ListState
         state/State.cpp
         state/StateDisk.cpp)
 
+# 写入器模块源文件列表
 list(APPEND ListWriter
         writer/Writer.cpp
         writer/WriterDiscard.cpp
         writer/WriterFile.cpp)
 
+# 条件编译：Oracle接口支持
 if (WITH_OCI)
     list(APPEND ListReplicator
             replicator/DatabaseConnection.cpp
@@ -102,16 +113,19 @@ if (WITH_OCI)
             replicator/ReplicatorOnline.cpp)
 endif ()
 
+# 条件编译：Kafka支持
 if (WITH_RDKAFKA)
     list(APPEND ListWriter
             writer/WriterKafka.cpp)
 endif ()
 
+# 条件编译：Prometheus支持
 if (WITH_PROMETHEUS)
     list(APPEND ListCommon
             common/metrics/MetricsPrometheus.cpp)
 endif ()
 
+# 条件编译：Protocol Buffers支持
 if (WITH_PROTOBUF)
     list(APPEND ListCommon
             common/OraProtoBuf.pb.cpp)
@@ -123,12 +137,14 @@ if (WITH_PROTOBUF)
     list(APPEND ListWriter
             writer/WriterStream.cpp)
 
+    # 条件编译：ZeroMQ支持
     if (WITH_ZEROMQ)
         list(APPEND ListStream
                 stream/StreamZeroMQ.cpp)
     endif ()
 endif ()
 
+# 构建各模块的目标库
 add_library(LibCommon OBJECT ${ListCommon})
 add_library(LibReplicator OBJECT ${ListReplicator})
 add_library(LibLocales OBJECT ${ListLocales})
@@ -139,6 +155,7 @@ add_library(LibMetadata OBJECT ${ListMetadata})
 add_library(LibState OBJECT ${ListState})
 add_library(LibWriter OBJECT ${ListWriter})
 
+# 主程序源文件和链接库
 target_sources(OpenLogReplicator PUBLIC OpenLogReplicator.cpp main.cpp)
 target_link_libraries(OpenLogReplicator LibCommon)
 target_link_libraries(OpenLogReplicator LibReplicator)
@@ -150,10 +167,12 @@ target_link_libraries(OpenLogReplicator LibMetadata)
 target_link_libraries(OpenLogReplicator LibState)
 target_link_libraries(OpenLogReplicator LibWriter)
 
+# 条件编译：Stream客户端
 if (WITH_PROTOBUF)
     add_library(LibStream ${ListStream})
     target_link_libraries(OpenLogReplicator LibStream)
 
+    # StreamClient应用程序
     target_sources(StreamClient PUBLIC StreamClient.cpp)
     target_link_libraries(StreamClient LibCommon)
     target_link_libraries(StreamClient LibStream)

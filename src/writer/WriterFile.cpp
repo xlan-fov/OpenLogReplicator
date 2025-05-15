@@ -1,4 +1,4 @@
-/* Thread writing to file (or stdout)
+/* 文件写入器类实现
    Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 
 This file is part of OpenLogReplicator.
@@ -201,6 +201,7 @@ namespace OpenLogReplicator {
         outputDes = -1;
     }
 
+    // 检查输出文件状态
     void WriterFile::checkFile(Scn scn __attribute__((unused)), Seq sequence, uint64_t size) {
         if (mode == MODE::STDOUT)
             return;
@@ -300,41 +301,53 @@ namespace OpenLogReplicator {
         }
     }
 
+    // 发送消息 - 写入到文件
     void WriterFile::sendMessage(BuilderMsg* msg) {
+        // 先检查文件状态
         checkFile(msg->scn, msg->sequence, msg->size + newLine);
 
+        // 写入消息内容
         bufferedWrite(msg->data + msg->tagSize, msg->size - msg->tagSize);
         fileSize += msg->size - msg->tagSize;
 
+        // 添加换行符（如果配置了的话）
         if (newLine > 0) {
             bufferedWrite(newLineMsg, newLine);
             fileSize += newLine;
         }
 
+        // 确认消息已处理
         confirmMessage(msg);
     }
 
+    // 获取写入器类型描述
     std::string WriterFile::getType() const {
         if (outputDes == STDOUT_FILENO)
             return "stdout";
         return "file:" + pathName + "/" + fileNameMask;
     }
 
+    // 轮询消息队列
     void WriterFile::pollQueue() {
+        // 如果元数据还处于准备状态，设置为开始状态
         if (metadata->status == Metadata::STATUS::READY)
             metadata->setStatusStart(this);
 
+        // 确保所有缓冲数据写入到文件
         flush();
     }
 
+    // 刷新缓冲区到文件
     void WriterFile::flush() {
         if (bufferFill == 0)
             return;
 
+        // 一次性写入所有缓冲数据
         unbufferedWrite(buffer, bufferFill);
         bufferFill = 0;
     }
 
+    // 无缓冲写入 - 直接写入文件系统
     void WriterFile::unbufferedWrite(const uint8_t* data, uint64_t size) {
         contextSet(CONTEXT::OS, REASON::OS);
         const int64_t bytesWritten = write(outputDes, data, size);
@@ -344,19 +357,23 @@ namespace OpenLogReplicator {
                                           std::to_string(size) + ", code returned: " + strerror(errno));
     }
 
+    // 缓冲写入 - 先写入内存缓冲区，满了再写入文件
     void WriterFile::bufferedWrite(const uint8_t* data, uint64_t size) {
-        if (bufferFill + size > Ctx::MEMORY_CHUNK_SIZE)
-            flush();
+        // 检查缓冲区剩余空间
+        if (bufferFill + size > Ctx::MEMORY_CHUNK_SIZE) {
+            // 缓冲区已满，先将现有数据写入文件
+            unbufferedWrite(buffer, bufferFill);
+            bufferFill = 0;
+        }
 
-        if (size > Ctx::MEMORY_CHUNK_SIZE) {
+        // 如果数据量大于缓冲区大小，直接写入文件
+        if (size >= Ctx::MEMORY_CHUNK_SIZE) {
             unbufferedWrite(data, size);
             return;
         }
 
+        // 将数据复制到缓冲区
         memcpy(buffer + bufferFill, data, size);
         bufferFill += size;
-
-        if (bufferFill > writeBufferFlushSize)
-            flush();
     }
 }

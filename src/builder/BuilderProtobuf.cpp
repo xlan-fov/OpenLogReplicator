@@ -82,41 +82,56 @@ namespace OpenLogReplicator {
     }
 
     void BuilderProtobuf::columnRaw(const std::string& columnName, const uint8_t* data __attribute__((unused)), uint64_t size __attribute__((unused))) {
+        // 设置列名称
         valuePB->set_name(columnName);
-        // TODO: implement
+        // TODO: 需要实现这里的二进制数据处理代码
     }
 
     void BuilderProtobuf::columnTimestamp(const std::string& columnName, time_t timestamp __attribute__((unused)),
                                           uint64_t fraction __attribute__((unused))) {
+        // 设置列名称
         valuePB->set_name(columnName);
-        // TODO: implement
+        // TODO: 需要实现时间戳格式转换
     }
 
     void BuilderProtobuf::columnTimestampTz(const std::string& columnName, time_t timestamp __attribute__((unused)),
                                             uint64_t fraction __attribute__((unused)), const std::string_view& tz __attribute__((unused))) {
+        // 设置列名称
         valuePB->set_name(columnName);
-        // TODO: implement
+        // TODO: 需要实现带时区的时间戳格式转换
     }
 
     void BuilderProtobuf::processBeginMessage(Scn scn, Seq sequence, time_t timestamp) {
+        // 将当前事务标记为非新事务
         newTran = false;
+        // 开始构建一个消息，设置SCN、序列号和没有额外标志
         builderBegin(scn, sequence, 0, BuilderMsg::OUTPUT_BUFFER::NONE);
+        // 创建一个新的Protobuf响应对象
         createResponse();
+        // 添加消息头部，包含SCN、时间戳等信息
         appendHeader(scn, timestamp, true, format.isDbFormatAddDml(), true);
 
+        // 如果不是完整消息格式，则立即发送BEGIN操作
         if (!format.isMessageFormatFull()) {
+            // 添加一个载荷项
             redoResponsePB->add_payload();
+            // 获取最后添加的载荷引用
             payloadPB = redoResponsePB->mutable_payload(redoResponsePB->payload_size() - 1);
+            // 设置操作类型为BEGIN
             payloadPB->set_op(pb::BEGIN);
 
+            // 将Protobuf消息序列化为字符串
             std::string output;
             const bool ret = redoResponsePB->SerializeToString(&output);
             delete redoResponsePB;
             redoResponsePB = nullptr;
 
+            // 如果序列化失败，抛出异常
             if (unlikely(!ret))
                 throw RuntimeException(50017, "PB begin processing failed, error serializing to string");
+            // 将序列化后的消息添加到输出缓冲区
             append(output);
+            // 提交构建的消息
             builderCommit();
         }
     }

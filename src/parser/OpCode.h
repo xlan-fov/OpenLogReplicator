@@ -30,91 +30,101 @@ namespace OpenLogReplicator {
     class Ctx;
     class RedoLogRecord;
 
+    // OpCode类是所有操作码处理类的基类
     class OpCode {
     public:
-        static constexpr uint16_t FLG_MULTIBLOCKUNDOHEAD{0x0001};
-        static constexpr uint16_t FLG_MULTIBLOCKUNDOTAIL{0x0002};
-        static constexpr uint16_t FLG_LASTBUFFERSPLIT{0x0004};
-        static constexpr uint16_t FLG_BEGIN_TRANS{0x0008};
-        static constexpr uint16_t FLG_USERUNDODDONE{0x0010};
-        static constexpr uint16_t FLG_ISTEMPOBJECT{0x0020};
-        static constexpr uint16_t FLG_USERONLY{0x0040};
-        static constexpr uint16_t FLG_TABLESPACEUNDO{0x0080};
-        static constexpr uint16_t FLG_MULTIBLOCKUNDOMID{0x0100};
-        static constexpr uint16_t FLG_BUEXT{0x0800};
-        static constexpr uint16_t FLG_ROLLBACK_OP0504{0x0004};
+        // 定义各种标志位常量
+        static constexpr uint16_t FLG_MULTIBLOCKUNDOHEAD{0x0001};  // 多块撤销头部标志
+        static constexpr uint16_t FLG_MULTIBLOCKUNDOTAIL{0x0002};  // 多块撤销尾部标志
+        static constexpr uint16_t FLG_LASTBUFFERSPLIT{0x0004};     // 最后缓冲区分裂标志
+        static constexpr uint16_t FLG_BEGIN_TRANS{0x0008};         // 事务开始标志
+        static constexpr uint16_t FLG_USERUNDODDONE{0x0010};       // 用户撤销完成标志
+        static constexpr uint16_t FLG_ISTEMPOBJECT{0x0020};        // 临时对象标志
+        static constexpr uint16_t FLG_USERONLY{0x0040};            // 仅用户标志
+        static constexpr uint16_t FLG_TABLESPACEUNDO{0x0080};      // 表空间撤销标志
+        static constexpr uint16_t FLG_MULTIBLOCKUNDOMID{0x0100};   // 多块撤销中间标志
+        static constexpr uint16_t FLG_BUEXT{0x0800};               // BU扩展标志
+        static constexpr uint16_t FLG_ROLLBACK_OP0504{0x0004};     // 回滚操作0504标志
 
-        static constexpr uint8_t KDLI_CODE_INFO{0x01};
-        static constexpr uint8_t KDLI_CODE_LOAD_COMMON{0x02};
-        static constexpr uint8_t KDLI_CODE_LOAD_DATA{0x04};
-        static constexpr uint8_t KDLI_CODE_ZERO{0x05};
-        static constexpr uint8_t KDLI_CODE_FILL{0x06};
-        static constexpr uint8_t KDLI_CODE_LMAP{0x07};
-        static constexpr uint8_t KDLI_CODE_LMAPX{0x08};
-        static constexpr uint8_t KDLI_CODE_SUPLOG{0x09};
-        static constexpr uint8_t KDLI_CODE_GMAP{0x0A};
-        static constexpr uint8_t KDLI_CODE_FPLOAD{0x0B};
-        static constexpr uint8_t KDLI_CODE_LOAD_LHB{0x0C};
-        static constexpr uint8_t KDLI_CODE_ALMAP{0x0D};
-        static constexpr uint8_t KDLI_CODE_ALMAPX{0x0E};
-        static constexpr uint8_t KDLI_CODE_LOAD_ITREE{0x0F};
-        static constexpr uint8_t KDLI_CODE_IMAP{0x10};
-        static constexpr uint8_t KDLI_CODE_IMAPX{0x11};
+        // KDLI码常量定义
+        static constexpr uint8_t KDLI_CODE_INFO{0x01};          // KDLI信息码
+        static constexpr uint8_t KDLI_CODE_LOAD_COMMON{0x02};   // KDLI通用加载码
+        static constexpr uint8_t KDLI_CODE_LOAD_DATA{0x04};     // KDLI数据加载码
+        static constexpr uint8_t KDLI_CODE_ZERO{0x05};          // KDLI零码
+        static constexpr uint8_t KDLI_CODE_FILL{0x06};          // KDLI填充码
+        static constexpr uint8_t KDLI_CODE_LMAP{0x07};          // KDLI LMAP码
+        static constexpr uint8_t KDLI_CODE_LMAPX{0x08};         // KDLI LMAPX码
+        static constexpr uint8_t KDLI_CODE_SUPLOG{0x09};        // KDLI补充日志码
+        static constexpr uint8_t KDLI_CODE_GMAP{0x0A};          // KDLI GMAP码
+        static constexpr uint8_t KDLI_CODE_FPLOAD{0x0B};        // KDLI FPLOAD码
+        static constexpr uint8_t KDLI_CODE_LOAD_LHB{0x0C};      // KDLI加载LHB码
+        static constexpr uint8_t KDLI_CODE_ALMAP{0x0D};         // KDLI ALMAP码
+        static constexpr uint8_t KDLI_CODE_ALMAPX{0x0E};        // KDLI ALMAPX码
+        static constexpr uint8_t KDLI_CODE_LOAD_ITREE{0x0F};    // KDLI加载ITREE码
+        static constexpr uint8_t KDLI_CODE_IMAP{0x10};          // KDLI IMAP码
+        static constexpr uint8_t KDLI_CODE_IMAPX{0x11};         // KDLI IMAPX码
 
     protected:
-        static constexpr uint8_t FLAGS_XA{0x01};
-        static constexpr uint8_t FLAGS_XR{0x02};
-        static constexpr uint8_t FLAGS_CR{0x03};
-        static constexpr uint8_t FLAGS_KDO_KDOM2{0x80};
+        // 内部标志位常量
+        static constexpr uint8_t FLAGS_XA{0x01};           // XA标志
+        static constexpr uint8_t FLAGS_XR{0x02};           // XR标志
+        static constexpr uint8_t FLAGS_CR{0x03};           // CR标志
+        static constexpr uint8_t FLAGS_KDO_KDOM2{0x80};    // KDO_KDOM2标志
 
-        static constexpr uint16_t FLG_KTUCF_OP0504{0x0002};
+        static constexpr uint16_t FLG_KTUCF_OP0504{0x0002}; // KTUCF操作0504标志
 
-        static constexpr uint8_t KDLI_FLG2_122_DESCN{0x01};
-        static constexpr uint8_t KDLI_FLG2_122_OVR{0x02};
-        static constexpr uint8_t KDLI_FLG2_122_XFM{0x04};
-        static constexpr uint8_t KDLI_FLG2_122_BT{0x08};
-        static constexpr uint8_t KDLI_FLG2_122_IT{0x10};
-        static constexpr uint8_t KDLI_FLG2_122_HASH{0x20};
-        static constexpr uint8_t KDLI_FLG2_122_LID{0x40};
-        static constexpr uint8_t KDLI_FLG2_122_VER1{0x80};
+        // KDLI FLG2标志位常量(12.2版本)
+        static constexpr uint8_t KDLI_FLG2_122_DESCN{0x01};  // DESCN标志
+        static constexpr uint8_t KDLI_FLG2_122_OVR{0x02};    // OVR标志
+        static constexpr uint8_t KDLI_FLG2_122_XFM{0x04};    // XFM标志
+        static constexpr uint8_t KDLI_FLG2_122_BT{0x08};     // BT标志
+        static constexpr uint8_t KDLI_FLG2_122_IT{0x10};     // IT标志
+        static constexpr uint8_t KDLI_FLG2_122_HASH{0x20};   // HASH标志
+        static constexpr uint8_t KDLI_FLG2_122_LID{0x40};    // LID标志
+        static constexpr uint8_t KDLI_FLG2_122_VER1{0x80};   // VER1标志
 
-        static constexpr uint8_t KDLI_FLG2_121_PFILL{0x08};
-        static constexpr uint8_t KDLI_FLG2_121_CMAP{0x10};
-        static constexpr uint8_t KDLI_FLG2_121_HASH{0x20};
-        static constexpr uint8_t KDLI_FLG2_121_LHB{0x40};
-        static constexpr uint8_t KDLI_FLG2_121_VER1{0x80};
+        // KDLI FLG2标志位常量(12.1版本)
+        static constexpr uint8_t KDLI_FLG2_121_PFILL{0x08};  // PFILL标志
+        static constexpr uint8_t KDLI_FLG2_121_CMAP{0x10};   // CMAP标志
+        static constexpr uint8_t KDLI_FLG2_121_HASH{0x20};   // HASH标志
+        static constexpr uint8_t KDLI_FLG2_121_LHB{0x40};    // LHB标志
+        static constexpr uint8_t KDLI_FLG2_121_VER1{0x80};   // VER1标志
 
-        static constexpr uint8_t KDLI_FLG3_VLL{0x80};
+        static constexpr uint8_t KDLI_FLG3_VLL{0x80};        // KDLI FLG3 VLL标志
 
-        static constexpr typeOp1 KDLI_OP_REDO{0};
-        static constexpr typeOp1 KDLI_OP_UNDO{1};
-        static constexpr typeOp1 KDLI_OP_CR{2};
-        static constexpr typeOp1 KDLI_OP_FRMT{3};
-        static constexpr typeOp1 KDLI_OP_INVL{4};
-        static constexpr typeOp1 KDLI_OP_LOAD{5};
-        static constexpr typeOp1 KDLI_OP_BIMG{6};
-        static constexpr typeOp1 KDLI_OP_SINV{7};
+        // KDLI操作类型常量
+        static constexpr typeOp1 KDLI_OP_REDO{0};       // 重做操作
+        static constexpr typeOp1 KDLI_OP_UNDO{1};       // 撤销操作
+        static constexpr typeOp1 KDLI_OP_CR{2};         // CR操作
+        static constexpr typeOp1 KDLI_OP_FRMT{3};       // FRMT操作
+        static constexpr typeOp1 KDLI_OP_INVL{4};       // INVL操作
+        static constexpr typeOp1 KDLI_OP_LOAD{5};       // LOAD操作
+        static constexpr typeOp1 KDLI_OP_BIMG{6};       // BIMG操作
+        static constexpr typeOp1 KDLI_OP_SINV{7};       // SINV操作
 
-        static constexpr uint8_t KDLI_TYPE_MASK{0x70};
-        static constexpr uint8_t KDLI_TYPE_NEW{0x00};
-        static constexpr uint8_t KDLI_TYPE_LOCK{0x08};
-        static constexpr uint8_t KDLI_TYPE_LHB{0x10};
-        static constexpr uint8_t KDLI_TYPE_DATA{0x20};
-        static constexpr uint8_t KDLI_TYPE_BTREE{0x30};
-        static constexpr uint8_t KDLI_TYPE_ITREE{0x40};
-        static constexpr uint8_t KDLI_TYPE_AUX{0x60};
-        static constexpr uint8_t KDLI_TYPE_VER1{0x80};
+        // KDLI类型掩码和类型常量
+        static constexpr uint8_t KDLI_TYPE_MASK{0x70};      // 类型掩码
+        static constexpr uint8_t KDLI_TYPE_NEW{0x00};       // NEW类型
+        static constexpr uint8_t KDLI_TYPE_LOCK{0x08};      // LOCK类型
+        static constexpr uint8_t KDLI_TYPE_LHB{0x10};       // LHB类型
+        static constexpr uint8_t KDLI_TYPE_DATA{0x20};      // DATA类型
+        static constexpr uint8_t KDLI_TYPE_BTREE{0x30};     // BTREE类型
+        static constexpr uint8_t KDLI_TYPE_ITREE{0x40};     // ITREE类型
+        static constexpr uint8_t KDLI_TYPE_AUX{0x60};       // AUX类型
+        static constexpr uint8_t KDLI_TYPE_VER1{0x80};      // VER1类型
 
-        static constexpr uint8_t KTBOP_F{0x01};
-        static constexpr uint8_t KTBOP_C{0x02};
-        static constexpr uint8_t KTBOP_Z{0x03};
-        static constexpr uint8_t KTBOP_L{0x04};
-        static constexpr uint8_t KTBOP_R{0x05};
-        static constexpr uint8_t KTBOP_N{0x06};
-        static constexpr uint8_t KTBOP_BLOCKCLEANOUT{0x10};
+        // KTB操作码常量
+        static constexpr uint8_t KTBOP_F{0x01};              // 全表扫描
+        static constexpr uint8_t KTBOP_C{0x02};              // 列表扫描
+        static constexpr uint8_t KTBOP_Z{0x03};              // 零扫描
+        static constexpr uint8_t KTBOP_L{0x04};              // 最后扫描
+        static constexpr uint8_t KTBOP_R{0x05};              // 列扫描
+        static constexpr uint8_t KTBOP_N{0x06};              // 无扫描
+        static constexpr uint8_t KTBOP_BLOCKCLEANOUT{0x10};  // 块清除
 
-        static constexpr uint8_t OPFLAG_BEGIN_TRANS{0x01};
+        static constexpr uint8_t OPFLAG_BEGIN_TRANS{0x01};   // 开始事务操作标志
 
+        // 处理KTB重做记录
         static void ktbRedo(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize)  {
             if (fieldSize < 8)
                 return;
@@ -350,12 +360,14 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理KDLI记录
         static void kdli(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize) {
             if (unlikely(fieldSize < 1))
                 throw RedoLogException(50061, "too short field kdli: " + std::to_string(fieldSize) + " offset: " + redoLogRecord->fileOffset.toString());
 
             const uint8_t code = *redoLogRecord->data(fieldPos + 0);
 
+            // 根据KDLI码选择相应的处理函数
             switch (code) {
                 case KDLI_CODE_INFO:
                     kdliInfo(ctx, redoLogRecord, fieldPos, fieldSize, code);
@@ -425,6 +437,7 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理KDLI INFO记录
         static void kdliInfo(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize, uint8_t code) {
             if (unlikely(fieldSize < 17))
                 throw RedoLogException(50061, "too short field kdli info: " + std::to_string(fieldSize) + " offset: " + redoLogRecord->fileOffset.toString());
@@ -1181,10 +1194,12 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理KDO操作码
         static void kdoOpCode(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize) {
             if (unlikely(fieldSize < 16))
                 throw RedoLogException(50061, "too short field kdo OpCode: " + std::to_string(fieldSize) + " offset: " + redoLogRecord->fileOffset.toString());
 
+            // 设置基本信息
             redoLogRecord->bdba = ctx->read32(redoLogRecord->data(fieldPos + 0));
             redoLogRecord->op = *redoLogRecord->data(fieldPos + 10);
             redoLogRecord->flags = *redoLogRecord->data(fieldPos + 11);
@@ -1377,6 +1392,7 @@ namespace OpenLogReplicator {
                 }
             }
 
+            // 根据操作类型调用特定的处理函数
             switch (redoLogRecord->op & 0x1F) {
                 case RedoLogRecord::OP_IRP:
                     kdoOpCodeIRP(ctx, redoLogRecord, fieldPos, fieldSize);
@@ -1415,6 +1431,7 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理KDO IRP操作(插入行片段)
         static void kdoOpCodeIRP(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize) {
             if (unlikely(fieldSize < 48))
                 throw RedoLogException(50061, "too short field kdo OpCode IRP: " + std::to_string(fieldSize) + " offset: " +
@@ -1521,6 +1538,7 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理KDO DRP操作(删除行片段)
         static void kdoOpCodeDRP(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize) {
             if (unlikely(fieldSize < 20))
                 throw RedoLogException(50061, "too short field kdo OpCode DRP: " + std::to_string(fieldSize) + " offset: " +
@@ -1773,6 +1791,7 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理KTUB记录(撤销事务信息)
         static void ktub(const Ctx* ctx, RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize, bool isKtubl) {
             if (unlikely(fieldSize < 24))
                 throw RedoLogException(50061, "too short field ktub (1): " + std::to_string(fieldSize) + " offset: " +
@@ -2068,6 +2087,7 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 转储内存内容
         static void dumpMemory(const Ctx* ctx, const RedoLogRecord* redoLogRecord, typePos fieldPos, typeSize fieldSize) {
             if (unlikely(ctx->dumpRedoLog >= 1)) {
                 *ctx->dumpStream << "Dump of memory from 0xXXXXXXXXXXXXXXXX to 0xXXXXXXXXXXXXXXXX\n";
@@ -2104,6 +2124,7 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 转储列内容
         static void dumpCols(const Ctx* ctx, const uint8_t* data, typeCCExt colNum, typeSize fieldSize, bool isNull, bool supp = false) {
             if (supp)
                 *ctx->dumpStream << "@@";
@@ -2249,19 +2270,22 @@ namespace OpenLogReplicator {
             }
         }
 
+        // 处理FB标志
         static void processFbFlags(uint8_t fb, char* fbStr) {
-            if ((fb & RedoLogRecord::FB_N) != 0) fbStr[7] = 'N'; else fbStr[7] = '-'; // The last column continues in the Next piece
-            if ((fb & RedoLogRecord::FB_P) != 0) fbStr[6] = 'P'; else fbStr[6] = '-'; // The first column continues from the Previous piece
-            if ((fb & RedoLogRecord::FB_L) != 0) fbStr[5] = 'L'; else fbStr[5] = '-'; // Last ctx piece
-            if ((fb & RedoLogRecord::FB_F) != 0) fbStr[4] = 'F'; else fbStr[4] = '-'; // First ctx piece
-            if ((fb & RedoLogRecord::FB_D) != 0) fbStr[3] = 'D'; else fbStr[3] = '-'; // Deleted row
-            if ((fb & RedoLogRecord::FB_H) != 0) fbStr[2] = 'H'; else fbStr[2] = '-'; // Head piece of row
-            if ((fb & RedoLogRecord::FB_C) != 0) fbStr[1] = 'C'; else fbStr[1] = '-'; // Clustered table member
-            if ((fb & RedoLogRecord::FB_K) != 0) fbStr[0] = 'K'; else fbStr[0] = '-'; // Cluster Key
+            // 设置各种FB标志位
+            if ((fb & RedoLogRecord::FB_N) != 0) fbStr[7] = 'N'; else fbStr[7] = '-'; // 最后一列继续到下一个片段
+            if ((fb & RedoLogRecord::FB_P) != 0) fbStr[6] = 'P'; else fbStr[6] = '-'; // 第一列继续自上一个片段
+            if ((fb & RedoLogRecord::FB_L) != 0) fbStr[5] = 'L'; else fbStr[5] = '-'; // 最后片段
+            if ((fb & RedoLogRecord::FB_F) != 0) fbStr[4] = 'F'; else fbStr[4] = '-'; // 第一片段
+            if ((fb & RedoLogRecord::FB_D) != 0) fbStr[3] = 'D'; else fbStr[3] = '-'; // 删除行
+            if ((fb & RedoLogRecord::FB_H) != 0) fbStr[2] = 'H'; else fbStr[2] = '-'; // 行头片段
+            if ((fb & RedoLogRecord::FB_C) != 0) fbStr[1] = 'C'; else fbStr[1] = '-'; // 集群表成员
+            if ((fb & RedoLogRecord::FB_K) != 0) fbStr[0] = 'K'; else fbStr[0] = '-'; // 集群键
             fbStr[8] = 0;
         }
 
     public:
+        // 基本处理方法，供各类操作码使用
         static void process(const Ctx* ctx, RedoLogRecord* redoLogRecord) {
             if (unlikely(ctx->dumpRedoLog >= 1)) {
                 bool encrypted = false;

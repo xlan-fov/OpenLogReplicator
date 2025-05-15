@@ -1,4 +1,4 @@
-/* Header for Schema class
+/* 数据库模式管理类头文件
    Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 
 This file is part of OpenLogReplicator.
@@ -54,84 +54,84 @@ along with OpenLogReplicator; see the file LICENSE;  If not see
 #include "SchemaElement.h"
 
 namespace OpenLogReplicator {
+    // 前向声明
     class Ctx;
-    class DbColumn;
-    class DbLob;
-    class DbTable;
-    class Locales;
+    class DbDefine;
+    class Table;
+    class SchemaElement;
     class XmlCtx;
 
-    class Schema final {
+    // 数据库模式管理类 - 管理表、列、索引等数据库对象结构
+    class Schema {
     protected:
-        Ctx* ctx;
-        Locales* locales;
-        RowId sysUserRowId;
-        SysUser sysUserAdaptive;
-
-        void addTableToDict(DbTable* table);
-        void removeTableFromDict(DbTable* table);
-        [[nodiscard]] uint16_t getLobBlockSize(typeTs ts) const;
+        Ctx* ctx;           // 上下文对象
+        std::mutex mtx;     // 互斥锁
+        std::map<uint64_t, SchemaElement*> rowIds; // 行ID到模式元素的映射
 
     public:
-        Scn scn{Scn::none()};
-        Scn refScn{Scn::none()};
-        bool loaded{false};
+        XmlCtx* xmlCtx;     // XML上下文
 
-        std::unordered_map<typeDataObj, DbLob*> lobPartitionMap;
-        std::unordered_map<typeDataObj, DbLob*> lobIndexMap;
-        std::unordered_map<typeObj, DbTable*> tableMap;
-        std::unordered_map<typeObj, DbTable*> tablePartitionMap;
-        XmlCtx* xmlCtxDefault{nullptr};
-        DbColumn* columnTmp{nullptr};
-        DbLob* lobTmp{nullptr};
-        DbTable* tableTmp{nullptr};
-        std::set<DbTable*> tablesTouched;
-        std::set<typeObj> identifiersTouched;
-        bool touched{false};
+        // 系统表信息
+        std::unordered_map<typeDba, typeObj> dbaToObj; // 数据块地址到对象ID映射
+        std::unordered_map<typeTs, std::string> tsMap; // 表空间ID到名称映射
+        std::unordered_map<typeUser, std::string> userMap; // 用户ID到名称映射
+        std::unordered_map<std::string, typeUser> userMapByName; // 用户名到ID映射
+        std::unordered_map<typeObj, Table*> tablesMap; // 对象ID到表的映射
+        std::unordered_map<typeObj, DbDefine*> defineMap; // 对象ID到约束定义的映射
+        
+        // XDb映射 (用于处理XML类型数据)
+        std::unordered_map<std::string, std::string> xdbXptMap; // XDB_XPT映射
+        std::unordered_map<std::string, std::string> xdbXPtMap2; // XDB_XPT映射2
+        std::unordered_map<std::string, std::string> xdbXNmMap; // XDB_XNM映射
 
-        TablePack<SysCCol, SysCColKey, TabRowIdUnorderedKeyDefault> sysCColPack;
-        TablePack<SysCDef, SysCDefKey, SysCDefCon> sysCDefPack;
-        TablePack<SysCol, SysColSeg, TabRowIdUnorderedKeyDefault> sysColPack;
-        TablePack<SysDeferredStg, TabRowIdKeyDefault, SysDeferredStgObj> sysDeferredStgPack;
-        TablePack<SysECol, TabRowIdKeyDefault, SysEColKey> sysEColPack;
-        TablePack<SysLob, SysLobKey, SysLobLObj> sysLobPack;
-        TablePack<SysLobCompPart, SysLobCompPartKey, SysLobCompPartPartObj> sysLobCompPartPack;
-        TablePack<SysLobFrag, SysLobFragKey, TabRowIdUnorderedKeyDefault> sysLobFragPack;
-        TablePack<SysObj, SysObjNameKey, SysObjObj> sysObjPack;
-        TablePack<SysTab, TabRowIdKeyDefault, SysTabObj> sysTabPack;
-        TablePack<SysTabComPart, SysTabComPartKey, SysTabComPartObj> sysTabComPartPack;
-        TablePack<SysTabPart, SysTabPartKey, TabRowIdUnorderedKeyDefault> sysTabPartPack;
-        TablePack<SysTabSubPart, SysTabSubPartKey, TabRowIdUnorderedKeyDefault> sysTabSubPartPack;
-        TablePack<SysTs, TabRowIdKeyDefault, SysTsTs> sysTsPack;
-        TablePack<SysUser, TabRowIdKeyDefault, SysUserUser> sysUserPack;
-        TablePack<XdbTtSet, TabRowIdKeyDefault, XdbTtSetTokSuf> xdbTtSetPack;
+        // 模式版本信息
+        Scn scn;           // 当前SCN
+        Time time;         // 当前时间
 
-        // XDB.X$yyxxx
-        std::map<std::string, XmlCtx*> schemaXmlMap;
+        // 构造与析构函数
+        explicit Schema(Ctx* newCtx);
+        virtual ~Schema();
 
-        Schema(Ctx* newCtx, Locales* newLocales);
-        ~Schema();
-
-        void purgeMetadata();
-        void purgeDicts();
-        [[nodiscard]] bool compare(Schema* otherSchema, std::string& msgs) const;
-
-        void touchTable(typeObj obj);
-        void touchTableLob(typeObj lobObj);
-        void touchTableLobFrag(typeObj lobFragObj);
-        void touchTablePart(typeObj obj);
-        [[nodiscard]] DbTable* checkTableDict(typeObj obj) const;
-        [[nodiscard]] bool checkTableDictUncommitted(typeObj obj, std::string& owner, std::string& table) const;
-        [[nodiscard]] DbLob* checkLobDict(typeDataObj dataObj) const;
-        [[nodiscard]] DbLob* checkLobIndexDict(typeDataObj dataObj) const;
-        void dropUnusedMetadata(const std::set<std::string>& users, const std::vector<SchemaElement*>& schemaElements, std::unordered_map<typeObj,
-                                std::string>& tablesDropped);
-        void buildMaps(const std::string& owner, const std::string& table, const std::vector<std::string>& keyList, const std::string& key,
-                       SchemaElement::TAG_TYPE tagType, const std::vector<std::string>& tagList, const std::string& tag, const std::string& condition,
-                       DbTable::OPTIONS options, std::unordered_map<typeObj, std::string>& tablesUpdated, bool suppLogDbPrimary, bool suppLogDbAll,
-                       uint64_t defaultCharacterMapId, uint64_t defaultCharacterNcharMapId);
-        void resetTouched();
+        // 模式对象管理方法
+        void clear();
+        void dumpSchema();
         void updateXmlCtx();
+        void addDbDefine(DbDefine* dbDefine);
+
+        // 表管理方法
+        void drop(Table* table);
+        void dropUser(typeUser user);
+        void dropSchema();
+        void verifyMap() const;
+        Table* getTable(typeObj obj) const;
+        bool hasTable(typeObj obj) const;
+        void addTable(Table* table);
+        DbDefine* getDbDefine(typeObj obj) const;
+        Table* findTable(const std::string& owner, const std::string& table);
+
+        // 数据库对象解析方法
+        void addSysTs(void* newRowId, typeTs ts, const std::string& name, uint32_t blockSize);
+        void addSysUser(void* newRowId, typeUser user, const std::string& name, uint64_t flags1, uint64_t flags2);
+        void addXdbTtSet(void* newRowId, const std::string& guid, uint16_t toksuf, uint32_t flags, typeObj objId);
+        void addXdbXpt(void* newRowId, const std::string& path, const std::string& id);
+        void addXdbXnm(void* newRowId, const std::string& nmspace, const std::string& id);
+        void addTsPrecheck(typeTs ts);
+        void addUserPrecheck(typeUser user);
+        void addSysObj(void* newRowId, typeUser owner, typeObj objId, typeDataObj dataObj, const std::string& name, typeObj2 object2, uint64_t flags1, uint64_t flags2);
+        void addSysTab(void* newRowId, typeObj objId, typeDataObj dataObj, typeTs ts, typeCol clucols, uint64_t flags1, uint64_t flags2, uint64_t property1, uint64_t property2);
+        void addSysTabComPart(void* newRowId, typeObj objId, typeDataObj dataObj, typeObj baseObject);
+        void addSysTabPart(void* newRowId, typeObj objId, typeDataObj dataObj, typeObj baseObject);
+        void addSysTabSubPart(void* newRowId, typeObj objId, typeDataObj dataObj, typeObj partitionObject);
+        void addSysCol(void* newRowId, typeObj objId, typeCol col, typeCol segcol, typeCol intcol, const std::string& name, typeCol2 col2, uint32_t length, uint32_t precision, int32_t scale, uint16_t charsetform, uint16_t charsetid, bool nullable, uint64_t property1, uint64_t property2);
+        void addSysCCol(void* newRowId, typeConId conId, typeCol intcol, typeObj objId, uint64_t flags1, uint64_t flags2);
+        void addSysCDef(void* newRowId, typeConId conId, typeObj objId, uint16_t type);
+        void addSysDeferredStg(void* newRowId, typeObj objId, uint64_t flags1, uint64_t flags2);
+        void addSysECol(void* newRowId, typeObj tabObj, typeCol column, typeGuard guardId);
+        void addSysLob(void* newRowId, typeObj objId, typeCol col, typeCol intcol, typeObj lObj, typeTs ts);
+        void addSysLobCompPart(void* newRowId, typeObj partObj, typeObj lObj);
+        void addSysLobFrag(void* newRowId, typeObj fragObj, typeObj parentObj, typeTs ts);
+        bool checkSchemaElement(void* rowId) const;
+        void deleteSchemaElement(void* rowId);
     };
 }
 

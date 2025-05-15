@@ -1,34 +1,34 @@
-/* Definition of schema SYS.COL$
-   Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
+/**
+ * SYS.COL$表定义
+ * 
+ * 该文件定义了SysCol类，映射Oracle数据库中的SYS.COL$表结构。
+ * SYS.COL$表存储了数据库中所有列的详细信息。
+ *
+ * @file SysCol.h
+ * @author Adam Leszczynski (aleszczynski@bersler.com)
+ * @copyright Copyright (C) 2018-2025 Adam Leszczynski
+ * @license GPL-3.0
+ */
 
-This file is part of OpenLogReplicator.
-
-OpenLogReplicator is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License as published
-by the Free Software Foundation; either version 3, or (at your option)
-any later version.
-
-OpenLogReplicator is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
-Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with OpenLogReplicator; see the file LICENSE;  If not see
-<http://www.gnu.org/licenses/>.  */
+#ifndef SYS_COL_H_
+#define SYS_COL_H_
 
 #include "../types/IntX.h"
 #include "../types/RowId.h"
 #include "../types/Types.h"
 
-#ifndef SYS_COL_H_
-#define SYS_COL_H_
-
 namespace OpenLogReplicator {
+    /**
+     * SYS.COL$表类 - 存储数据库列信息
+     */
     class SysCol final {
     public:
+        /** 列名最大长度 */
         static constexpr uint NAME_LENGTH{128};
 
+        /**
+         * 列属性枚举类型
+         */
         enum class PROPERTY : unsigned long long {
             ADT = 1ULL << 0, OID = 1ULL << 1, NESTED1 = 1ULL << 2, VIRTUAL1 = 1ULL << 3, NESTED_TABLE_SETID = 1ULL << 4, HIDDEN = 1ULL << 5,
             PRIMARY_KEY_BASED_OID = 1ULL << 6, STORED_AS_LOB = 1ULL << 7, SYSTEM_GENERATED = 1ULL << 8, ROWINFO_TYPED_TABLE_VIEW = 1ULL << 9,
@@ -40,6 +40,9 @@ namespace OpenLogReplicator {
             GENERATED_ALWAYS_IDENTITY = 1ULL << 37, GENERATED_BY_DEFAULT_IDENTITY = 1ULL << 38, GUARD = 1ULL << 39
         };
 
+        /**
+         * 列数据类型枚举
+         */
         enum class COLTYPE : unsigned char {
             NONE = 0, VARCHAR = 1, NUMBER = 2, LONG = 8, DATE = 12, RAW = 23, LONG_RAW = 24, XMLTYPE = 58, CHAR = 96, FLOAT = 100, DOUBLE = 101, CLOB = 112,
             BLOB = 113, JSON = 119, TIMESTAMP = 180, TIMESTAMP_WITH_TZ = 181, INTERVAL_YEAR_TO_MONTH = 182, INTERVAL_DAY_TO_SECOND = 183, UROWID = 208,
@@ -178,6 +181,9 @@ namespace OpenLogReplicator {
                 rowId(sysCol->rowId) {
         }
 
+        /**
+         * SysColSeg类比较运算符
+         */
         bool operator<(const SysColSeg& other) const {
             if (obj < other.obj)
                 return true;

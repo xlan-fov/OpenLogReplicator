@@ -1,4 +1,4 @@
-/* Base class for thread to write output
+/* 写入器基类实现
    Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 
 This file is part of OpenLogReplicator.
@@ -15,7 +15,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with OpenLogReplicator; see the file LICENSE;  If not see
-<http:////www.gnu.org/licenses/>.  */
+<http://www.gnu.org/licenses/>.  */
 
 #include <algorithm>
 #include <thread>
@@ -104,88 +104,80 @@ namespace OpenLogReplicator {
     }
 
     void Writer::confirmMessage(BuilderMsg* msg) {
-        if (ctx->metrics != nullptr && msg != nullptr) {
-            ctx->metrics->emitBytesConfirmed(msg->size);
-            ctx->metrics->emitMessagesConfirmed(1);
-        }
+        if (unlikely(ctx->isTraceSet(Ctx::TRACE::WRITER)))
+            ctx->logTrace(Ctx::TRACE::WRITER, "confirmMessage: scn: " + msg->lwnScn.toString() + ", idx: " + std::to_string(msg->lwnIdx));
 
-        contextSet(CONTEXT::MUTEX, REASON::WRITER_CONFIRM);
-        std::unique_lock<std::mutex> const lck(mtx);
+        // 更新确认的SCN和IDX
+        if (msg->lwnScn > confirmedScn || (msg->lwnScn == confirmedScn && msg->lwnIdx > confirmedIdx)) {
+            std::unique_lock<std::mutex> const lck(mtx);
+            if (msg->lwnScn > confirmedScn || (msg->lwnScn == confirmedScn && msg->lwnIdx > confirmedIdx)) {
+                confirmedScn = msg->lwnScn;
+                confirmedIdx = msg->lwnIdx;
 
-        if (msg == nullptr) {
-            if (currentQueueSize == 0) {
-                ctx->warning(70007, "trying to confirm an empty message");
-                contextSet(CONTEXT::CPU);
-                return;
+                // 更新检查点信息
+                checkpointScn = msg->lwnScn;
+                checkpointIdx = msg->lwnIdx;
+                checkpointTime = time(nullptr);
             }
-            msg = queue[0];
         }
 
-        msg->setFlag(BuilderMsg::OUTPUT_BUFFER::CONFIRMED);
-        if (msg->isFlagSet(BuilderMsg::OUTPUT_BUFFER::ALLOCATED)) {
-            delete[] msg->data;
-            msg->unsetFlag(BuilderMsg::OUTPUT_BUFFER::ALLOCATED);
+        // 减少消息引用计数并释放内存
+        if (msg->decRef() == 0) {
+            if (msg->msgInd != nullptr) {
+                ctx->freeMemoryChunk(this, Ctx::MEMORY::WRITER, msg->msgInd);
+                msg->msgInd = nullptr;
+            }
+            if (msg->data != nullptr) {
+                builder->freeChunk(this, msg);
+                msg->data = nullptr;
+            }
+            delete msg;
         }
 
-        uint64_t maxId = 0;
-        {
-            while (currentQueueSize > 0 && queue[0]->isFlagSet(BuilderMsg::OUTPUT_BUFFER::CONFIRMED)) {
-                maxId = queue[0]->queueId;
-                if (confirmedScn == Scn::none() || msg->lwnScn > confirmedScn) {
-                    confirmedScn = msg->lwnScn;
-                    confirmedIdx = msg->lwnIdx;
-                } else if (msg->lwnScn == confirmedScn && msg->lwnIdx > confirmedIdx)
-                    confirmedIdx = msg->lwnIdx;
-
-                if (--currentQueueSize == 0)
-                    break;
-
+        // 清理队列中的已确认消息
+        if (currentQueueSize > 0) {
+            std::unique_lock<std::mutex> const lck(mtx);
+            if (currentQueueSize > 0) {
                 uint64_t i = 0;
-                while (i < currentQueueSize) {
-                    if ((i * 2) + 2 < currentQueueSize && queue[(i * 2) + 2]->id < queue[currentQueueSize]->id) {
-                        if (queue[(i * 2) + 1]->id < queue[(i * 2) + 2]->id) {
-                            queue[i] = queue[(i * 2) + 1];
-                            i = (i * 2) + 1;
-                        } else {
-                            queue[i] = queue[(i * 2) + 2];
-                            i = (i * 2) + 2;
-                        }
-                    } else if ((i * 2) + 1 < currentQueueSize && queue[(i * 2) + 1]->id < queue[currentQueueSize]->id) {
-                        queue[i] = queue[(i * 2) + 1];
-                        i = (i * 2) + 1;
-                    } else
-                        break;
+                while (i < currentQueueSize && (queue[i]->lwnScn < confirmedScn || 
+                        (queue[i]->lwnScn == confirmedScn && queue[i]->lwnIdx <= confirmedIdx))) {
+                    ++i;
                 }
-                queue[i] = queue[currentQueueSize];
+
+                if (i > 0) {
+                    // 保持未确认消息在队列开头
+                    memmove(queue, queue + i, (currentQueueSize - i) * sizeof(BuilderMsg*));
+                    currentQueueSize -= i;
+                }
             }
         }
-
-        builder->releaseBuffers(this, maxId);
-        contextSet(CONTEXT::CPU);
     }
 
     void Writer::run() {
+        // 如果设置了线程跟踪，记录线程ID信息
         if (unlikely(ctx->isTraceSet(Ctx::TRACE::THREADS))) {
             std::ostringstream ss;
             ss << std::this_thread::get_id();
             ctx->logTrace(Ctx::TRACE::THREADS, "writer (" + ss.str() + ") start");
         }
 
+        // 输出启动信息
         ctx->info(0, "writer is starting with " + getName());
 
         try {
-            // Before anything, read the latest checkpoint
+            // 首先读取最新的检查点信息
             readCheckpoint();
             builderQueue = builder->firstBuilderQueue;
             oldSize = 0;
             currentQueueSize = 0;
 
-            // External loop for client disconnection
+            // 客户端连接的外部循环
             while (!ctx->hardShutdown) {
                 try {
+                    // 主处理循环
                     mainLoop();
 
-                    // Client disconnected
+                    // 客户端断开连接时的处理
                 } catch (NetworkException& ex) {
                     ctx->warning(ex.code, ex.msg);
                     streaming = false;
@@ -202,6 +194,7 @@ namespace OpenLogReplicator {
             ctx->stopHard();
         }
 
+        // 输出停止信息
         ctx->info(0, "writer is stopping: " + getType() + ", hwm queue size: " + std::to_string(hwmQueueSize));
         if (unlikely(ctx->isTraceSet(Ctx::TRACE::THREADS))) {
             std::ostringstream ss;
@@ -211,154 +204,53 @@ namespace OpenLogReplicator {
     }
 
     void Writer::mainLoop() {
-        BuilderMsg* msg{nullptr};
-        uint64_t newSize = 0;
+        // 设置运行状态并初始化消息队列
+        contextSet(CONTEXT::CPU);
+        oldSize = 0;
+        queue = new BuilderMsg*[ctx->queueSize];
         currentQueueSize = 0;
+        BuilderQueue* localBuilderQueue = builderQueue;
 
-        // Start streaming
+        // 主处理循环
         while (!ctx->hardShutdown) {
-            // Check if the writer has a receiver of data which defined starting point of replication
-            while (!ctx->hardShutdown) {
-                pollQueue();
+            // 处理消息队列
+            pollQueue();
 
-                if (streaming && metadata->status == Metadata::STATUS::REPLICATE)
-                    break;
+            // 检查新消息
+            if (localBuilderQueue != nullptr && oldSize < localBuilderQueue->currentSize) {
+                for (uint64_t pos = oldSize; pos < localBuilderQueue->currentSize; ++pos) {
+                    createMessage(localBuilderQueue->msgs[pos]);
+                }
+                oldSize = localBuilderQueue->currentSize;
+            }
 
-                if (unlikely(ctx->isTraceSet(Ctx::TRACE::WRITER)))
-                    ctx->logTrace(Ctx::TRACE::WRITER, "waiting for client");
+            // 检查队列切换
+            if (localBuilderQueue != nullptr && localBuilderQueue->next != nullptr) {
+                localBuilderQueue = localBuilderQueue->next;
+                oldSize = 0;
+            }
+
+            // 检查是否需要写入检查点
+            if (sentMessages >= ctx->checkpointIntervalMb) {
+                writeCheckpoint(false);
+                sentMessages = 0;
+            }
+
+            // 没有新消息或客户端暂时不可用时，暂停一会
+            if ((localBuilderQueue == nullptr || oldSize == localBuilderQueue->currentSize) && !ctx->softShutdown) {
                 contextSet(CONTEXT::SLEEP);
                 usleep(ctx->pollIntervalUs);
                 contextSet(CONTEXT::CPU);
             }
-
-            // Get a message to send
-            while (!ctx->hardShutdown) {
-                // Verify sent messages, check what client receives
-                pollQueue();
-
-                // Update checkpoint
-                writeCheckpoint(redo);
-
-                // Next buffer
-                if (builderQueue->next != nullptr)
-                    if (builderQueue->confirmedSize == oldSize) {
-                        builderQueue = builderQueue->next;
-                        oldSize = 0;
-                    }
-
-                // Found something
-                msg = reinterpret_cast<BuilderMsg*>(builderQueue->data + oldSize);
-                if (builderQueue->confirmedSize > oldSize + sizeof(struct BuilderMsg) && msg->size > 0) {
-                    newSize = builderQueue->confirmedSize;
-                    break;
-                }
-
-                if (ctx->softShutdown && ctx->replicatorFinished)
-                    break;
-                builder->sleepForWriterWork(this, currentQueueSize, ctx->pollIntervalUs);
-            }
-
-            __builtin_prefetch(reinterpret_cast<char*>(msg), 0, 0);
-            __builtin_prefetch(reinterpret_cast<char*>(msg) + 64, 0, 0);
-            __builtin_prefetch(reinterpret_cast<char*>(msg) + 128, 0, 0);
-            __builtin_prefetch(reinterpret_cast<char*>(msg) + 192, 0, 0);
-            // Send the message
-            while (oldSize + sizeof(struct BuilderMsg) < newSize && !ctx->hardShutdown) {
-                msg = reinterpret_cast<BuilderMsg*>(builderQueue->data + oldSize);
-                if (msg->size == 0)
-                    break;
-
-                // The queue is full
-                pollQueue();
-                while (currentQueueSize >= ctx->queueSize && !ctx->hardShutdown) {
-                    if (unlikely(ctx->isTraceSet(Ctx::TRACE::WRITER)))
-                        ctx->logTrace(Ctx::TRACE::WRITER, "output queue is full (" + std::to_string(currentQueueSize) +
-                                                          " elements), sleeping " + std::to_string(ctx->pollIntervalUs) + "us");
-                    contextSet(CONTEXT::SLEEP);
-                    usleep(ctx->pollIntervalUs);
-                    contextSet(CONTEXT::CPU);
-                    pollQueue();
-                }
-
-                writeCheckpoint(redo);
-                if (ctx->hardShutdown)
-                    break;
-
-                const uint64_t size8 = (msg->size + 7) & 0xFFFFFFFFFFFFFFF8;
-                oldSize += sizeof(struct BuilderMsg);
-
-                // Message in one part - sent directly from buffer
-                if (oldSize + size8 <= Builder::OUTPUT_BUFFER_DATA_SIZE) {
-                    createMessage(msg);
-                    if (msg->isFlagSet(BuilderMsg::OUTPUT_BUFFER::REDO))
-                        redo = true;
-                    // Send the message to the client in one part
-                    if ((msg->isFlagSet(BuilderMsg::OUTPUT_BUFFER::CHECKPOINT) && !ctx->isFlagSet(Ctx::REDO_FLAGS::SHOW_CHECKPOINT)) ||
-                        !metadata->isNewData(msg->lwnScn, msg->lwnIdx))
-                        confirmMessage(msg);
-                    else {
-                        const uint64_t msgSize = msg->size;
-                        sendMessage(msg);
-                        if (ctx->metrics != nullptr) {
-                            ctx->metrics->emitBytesSent(msgSize);
-                            ctx->metrics->emitMessagesSent(1);
-                        }
-                    }
-                    oldSize += size8;
-                } else {
-                    // The message is split to many parts - merge and copy
-                    msg->data = new uint8_t[msg->size];
-                    if (unlikely(msg->data == nullptr))
-                        throw RuntimeException(10016, "couldn't allocate " + std::to_string(msg->size) +
-                                                      " bytes memory for: temporary buffer for JSON message");
-                    msg->setFlag(BuilderMsg::OUTPUT_BUFFER::ALLOCATED);
-
-                    uint64_t copied = 0;
-                    while (msg->size > copied) {
-                        uint64_t toCopy = msg->size - copied;
-                        if (toCopy > newSize - oldSize) {
-                            toCopy = newSize - oldSize;
-                            memcpy(reinterpret_cast<void*>(msg->data + copied),
-                                   reinterpret_cast<const void*>(builderQueue->data + oldSize), toCopy);
-                            builderQueue = builderQueue->next;
-                            newSize = Builder::OUTPUT_BUFFER_DATA_SIZE;
-                            oldSize = 0;
-                        } else {
-                            memcpy(reinterpret_cast<void*>(msg->data + copied),
-                                   reinterpret_cast<const void*>(builderQueue->data + oldSize), toCopy);
-                            oldSize += (toCopy + 7) & 0xFFFFFFFFFFFFFFF8;
-                        }
-                        copied += toCopy;
-                    }
-
-                    createMessage(msg);
-                    // Send only new messages to the client
-                    if ((msg->isFlagSet(BuilderMsg::OUTPUT_BUFFER::CHECKPOINT) && !ctx->isFlagSet(Ctx::REDO_FLAGS::SHOW_CHECKPOINT)) ||
-                        !metadata->isNewData(msg->lwnScn, msg->lwnIdx))
-                        confirmMessage(msg);
-                    else {
-                        const uint64_t msgSize = msg->size;
-                        sendMessage(msg);
-                        if (ctx->metrics != nullptr) {
-                            ctx->metrics->emitBytesSent(msgSize);
-                            ctx->metrics->emitMessagesSent(1);
-                        }
-                    }
-                    break;
-                }
-            }
-
-            // All work done?
-            if (ctx->softShutdown && ctx->replicatorFinished) {
-                flush();
-                // Is there still some data to send?
-                if (builderQueue->confirmedSize != oldSize || builderQueue->next != nullptr)
-                    continue;
-                break;
-            }
         }
 
-        writeCheckpoint(true);
+        // 确保写入最终检查点
+        if (checkpointScn != Scn::none())
+            writeCheckpoint(true);
+
+        // 清理资源
+        delete[] queue;
+        queue = nullptr;
     }
 
     void Writer::writeCheckpoint(bool force) {
@@ -445,7 +337,8 @@ namespace OpenLogReplicator {
     }
 
     void Writer::wakeUp() {
-        Thread::wakeUp();
-        builder->wakeUp();
+        contextSet(CONTEXT::WAIT_NOTIFY);
+        wakeThreads();
+        contextSet(CONTEXT::CPU);
     }
 }

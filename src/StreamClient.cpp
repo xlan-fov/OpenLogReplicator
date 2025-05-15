@@ -80,24 +80,24 @@ int main(int argc, char** argv) {
                 std::to_string(OpenLogReplicator_VERSION_MINOR) + "." + std::to_string(OpenLogReplicator_VERSION_PATCH) +
                 " StreamClient (C) 2018-2025 by Adam Leszczynski (aleszczynski@bersler.com), see LICENSE file for licensing information");
 
-    // Run arguments:
-    // 1. network|zeromq - type of communication protocol
-    // 2. uri - network: host:port, zeromq: tcp://host:port
-    // 3. database - database name
-    // 4. format - protobuf|json
-    // 5. The fifth parameter defines mode to start. If OpenLogReplicator is started for the first time, it would expect to define the position to start
-    //    replication from. If it is running, it would expect the client to provide c:<scn>,<idx> - position of last confirmed message.
-    //    Possible values are:
-    //      now - start from NOW
-    //      now,<seq> - start from NOW but start parsing redo log from sequence <seq>
-    //      scn:<scn> - start from given SCN
-    //      scn:<scn>,<seq> - start from given SCN but start parsing redo log from sequence <seq>
-    //      time_rel:<time> - start from given time (relative to current time)
-    //      time_rel:<time>,<seq> - start from given time (relative to current time) but start parsing redo log from sequence <seq>
-    //      time:<time> - start from given time (absolute)
-    //      time:<time>,<seq> - start from given time (absolute) but start parsing redo log from sequence <seq>
-    //      c:<scn>,<idx> - continue from given SCN and IDX
-    //      next - continue with next message, from the last position
+    // 运行参数说明：
+    // 1. network|zeromq - 通信协议类型
+    // 2. uri - 连接地址：network格式为host:port, zeromq格式为tcp://host:port
+    // 3. database - 数据库名称
+    // 4. format - protobuf|json 输出格式
+    // 5. 第五个参数定义启动模式。如果OpenLogReplicator是首次启动，需要定义复制的起始位置。
+    //    如果已在运行，则客户端需要提供c:<scn>,<idx> - 最后确认消息的位置。
+    //    可能的值有：
+    //      now - 从当前时间开始
+    //      now,<seq> - 从当前时间开始，但从指定序列号开始解析重做日志
+    //      scn:<scn> - 从指定的SCN开始
+    //      scn:<scn>,<seq> - 从指定的SCN开始，但从指定序列号开始解析重做日志
+    //      time_rel:<time> - 从相对当前时间的指定时间开始
+    //      time_rel:<time>,<seq> - 从相对当前时间的指定时间开始，但从指定序列号开始解析重做日志
+    //      time:<time> - 从指定的绝对时间开始
+    //      time:<time>,<seq> - 从指定的绝对时间开始，但从指定序列号开始解析重做日志
+    //      c:<scn>,<idx> - 从指定的SCN和IDX位置继续
+    //      next - 从上一个位置继续处理下一条消息
     if (argc != 6) {
         ctx.info(0, "use: ClientNetwork [network|zeromq] <uri> <database> <format> [now{,<seq>}|scn:<scn>{,<seq>}|time_rel:<time>{,<seq>}|"
                     "time:<time>{,<seq>}|c:<scn>,<idx>|next]");

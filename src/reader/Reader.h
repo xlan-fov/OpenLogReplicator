@@ -39,70 +39,73 @@ namespace OpenLogReplicator {
         };
 
     protected:
-        static constexpr uint64_t FLAGS_END{0x0008};
-        static constexpr uint64_t FLAGS_ASYNC{0x0100};
-        static constexpr uint64_t FLAGS_NODATALOSS{0x0200};
-        static constexpr uint64_t FLAGS_RESYNC{0x0800};
-        static constexpr uint64_t FLAGS_CLOSEDTHREAD{0x1000};
-        static constexpr uint64_t FLAGS_MAXPERFORMANCE{0x2000};
+        // 标志常量定义
+        static constexpr uint64_t FLAGS_END{0x0008};         // 结束标志
+        static constexpr uint64_t FLAGS_ASYNC{0x0100};       // 异步标志
+        static constexpr uint64_t FLAGS_NODATALOSS{0x0200};  // 无数据丢失标志
+        static constexpr uint64_t FLAGS_RESYNC{0x0800};      // 重新同步标志
+        static constexpr uint64_t FLAGS_CLOSEDTHREAD{0x1000}; // 线程关闭标志
+        static constexpr uint64_t FLAGS_MAXPERFORMANCE{0x2000}; // 最大性能标志
 
-        enum class STATUS : unsigned char {
-            SLEEPING, CHECK, UPDATE, READ
-        };
+        // 常量定义
+        static constexpr uint PAGE_SIZE_MAX{4096};           // 最大页面大小
+        static constexpr uint BAD_CDC_MAX_CNT{20};           // 最大错误CDC计数
 
-        static constexpr uint PAGE_SIZE_MAX{4096};
-        static constexpr uint BAD_CDC_MAX_CNT{20};
+        // 基础属性
+        std::string database;                  // 数据库名称
+        int fileCopyDes{-1};                   // 文件复制描述符
+        uint64_t fileSize{0};                  // 文件大小
+        Seq fileCopySequence;                  // 文件复制序列
+        bool hintDisplayed{false};             // 是否显示提示
+        bool configuredBlockSum;               // 是否配置块校验和
+        bool readBlocks{false};                // 是否读取块
+        bool reachedZero{false};               // 是否达到零点
+        std::string fileNameWrite;             // 写入文件名
+        int group;                             // 组号
+        Seq sequence;                          // 序列号
+        typeBlk numBlocksHeader{Ctx::ZERO_BLK}; // 头部块数
+        typeResetlogs resetlogs{0};            // 重置日志ID
+        typeActivation activation{0};          // 激活ID
+        uint8_t* headerBuffer{nullptr};        // 头部缓冲区
+        uint32_t compatVsn{0};                 // 兼容版本
+        Time firstTimeHeader{0};               // 首次时间头
+        Scn firstScn{Scn::none()};             // 首个SCN
+        Scn firstScnHeader{Scn::none()};       // 头部首个SCN
+        Scn nextScn{Scn::none()};              // 下一个SCN
+        Scn nextScnHeader{Scn::none()};        // 头部下一个SCN
+        Time nextTime{0};                      // 下一个时间
+        uint blockSize{0};                     // 块大小
+        uint64_t sumRead{0};                   // 读取总数
+        uint64_t sumTime{0};                   // 时间总数
+        uint64_t bufferScan{0};                // 缓冲区扫描
+        uint lastRead{0};                      // 最后读取
+        time_ut lastReadTime{0};               // 最后读取时间
+        time_ut readTime{0};                   // 读取时间
+        time_ut loopTime{0};                   // 循环时间
 
-        std::string database;
-        int fileCopyDes{-1};
-        uint64_t fileSize{0};
-        Seq fileCopySequence;
-        bool hintDisplayed{false};
-        bool configuredBlockSum;
-        bool readBlocks{false};
-        bool reachedZero{false};
-        std::string fileNameWrite;
-        int group;
-        Seq sequence;
-        typeBlk numBlocksHeader{Ctx::ZERO_BLK};
-        typeResetlogs resetlogs{0};
-        typeActivation activation{0};
-        uint8_t* headerBuffer{nullptr};
-        uint32_t compatVsn{0};
-        Time firstTimeHeader{0};
-        Scn firstScn{Scn::none()};
-        Scn firstScnHeader{Scn::none()};
-        Scn nextScn{Scn::none()};
-        Scn nextScnHeader{Scn::none()};
-        Time nextTime{0};
-        uint blockSize{0};
-        uint64_t sumRead{0};
-        uint64_t sumTime{0};
-        uint64_t bufferScan{0};
-        uint lastRead{0};
-        time_ut lastReadTime{0};
-        time_ut readTime{0};
-        time_ut loopTime{0};
+        // 同步和线程控制
+        std::mutex mtx;                        // 互斥锁
+        std::atomic<uint64_t> bufferStart{0};  // 缓冲区开始位置
+        std::atomic<uint64_t> bufferEnd{0};    // 缓冲区结束位置
+        std::atomic<STATUS> status{STATUS::SLEEPING}; // 状态
+        std::atomic<REDO_CODE> ret{REDO_CODE::OK}; // 返回码
+        std::condition_variable condBufferFull;    // 缓冲区满条件变量
+        std::condition_variable condReaderSleeping; // 读取器睡眠条件变量
+        std::condition_variable condParserSleeping; // 解析器睡眠条件变量
 
-        std::mutex mtx;
-        std::atomic<uint64_t> bufferStart{0};
-        std::atomic<uint64_t> bufferEnd{0};
-        std::atomic<STATUS> status{STATUS::SLEEPING};
-        std::atomic<REDO_CODE> ret{REDO_CODE::OK};
-        std::condition_variable condBufferFull;
-        std::condition_variable condReaderSleeping;
-        std::condition_variable condParserSleeping;
+        // 虚拟方法，需由子类实现
+        virtual void redoClose() = 0;                    // 关闭重做日志
+        virtual REDO_CODE redoOpen() = 0;                // 打开重做日志
+        virtual int redoRead(uint8_t* buf, uint64_t offset, uint size) = 0; // 读取重做日志
+        virtual uint readSize(uint prevRead);            // 获取读取大小
+        virtual REDO_CODE reloadHeaderRead();            // 重新读取头部
 
-        virtual void redoClose() = 0;
-        virtual REDO_CODE redoOpen() = 0;
-        virtual int redoRead(uint8_t* buf, uint64_t offset, uint size) = 0;
-        virtual uint readSize(uint prevRead);
-        virtual REDO_CODE reloadHeaderRead();
-        REDO_CODE checkBlockHeader(uint8_t* buffer, typeBlk blockNumber, bool showHint);
-        REDO_CODE reloadHeader();
-        bool read1();
-        bool read2();
-        void mainLoop();
+        // 实用方法
+        REDO_CODE checkBlockHeader(uint8_t* buffer, typeBlk blockNumber, bool showHint); // 检查块头
+        REDO_CODE reloadHeader();                        // 重新加载头部
+        bool read1();                                    // 读取1
+        bool read2();                                    // 读取2
+        void mainLoop();                                 // 主循环
 
     public:
         const static char* REDO_MSG[static_cast<uint>(REDO_CODE::CNT)];

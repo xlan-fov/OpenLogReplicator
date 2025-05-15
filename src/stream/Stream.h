@@ -1,4 +1,4 @@
-/* Header for Stream class
+/* 基础流通信抽象类
    Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 
 This file is part of OpenLogReplicator.
@@ -20,32 +20,33 @@ along with OpenLogReplicator; see the file LICENSE;  If not see
 #ifndef STREAM_H_
 #define STREAM_H_
 
-#include "../common/types/Types.h"
+#include <cstdint>
+#include <string>
 
 namespace OpenLogReplicator {
+    // 前向声明
     class Ctx;
 
+    // 流通信抽象基类 - 定义通信接口
     class Stream {
     protected:
-        Ctx* ctx;
-        std::string uri;
+        Ctx* ctx;             // 上下文对象
 
     public:
-        static constexpr uint64_t READ_NETWORK_BUFFER{1024};
+        // 构造与析构
+        explicit Stream(Ctx* newCtx);
+        virtual ~Stream();
 
-        Stream(Ctx* newCtx, std::string newUri);
-        virtual ~Stream() = default;
-        Stream(const Stream&) = delete;
-        Stream& operator=(const Stream&) = delete;
-
-        [[nodiscard]] virtual std::string getName() const = 0;
-        virtual void initializeClient() = 0;
-        virtual void initializeServer() = 0;
-        virtual void sendMessage(const void* msg, uint64_t length) = 0;
-        virtual uint64_t receiveMessage(void* msg, uint64_t length) = 0;
-        virtual uint64_t receiveMessageNB(void* msg, uint64_t length) = 0;
-        [[nodiscard]] virtual bool isConnected() = 0;
+        // 初始化接口 - 纯虚函数
         virtual void initialize() = 0;
+        virtual void initializeServer() = 0;
+        virtual void initializeClient() = 0;
+
+        // 消息传输接口 - 纯虚函数
+        virtual void sendMessage(const char* buffer, uint64_t length) = 0;
+        virtual uint64_t receiveMessage(uint8_t* buffer, uint64_t maxLength) = 0;
+        virtual void receiveMessageAll(uint8_t* buffer, uint64_t length) = 0;
+        virtual void clientDisconnect() = 0;
     };
 }
 

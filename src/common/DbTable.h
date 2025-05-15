@@ -1,21 +1,14 @@
-/* Header for DbTable class
-   Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
-
-This file is part of OpenLogReplicator.
-
-OpenLogReplicator is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License as published
-by the Free Software Foundation; either version 3, or (at your option)
-any later version.
-
-OpenLogReplicator is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
-Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with OpenLogReplicator; see the file LICENSE;  If not see
-<http://www.gnu.org/licenses/>.  */
+/**
+ * 数据库表类头文件
+ * 
+ * 该文件定义了DbTable类，表示Oracle数据库中的表对象。
+ * DbTable存储表的结构信息，包括列、LOB对象、分区等。
+ *
+ * @file DbTable.h
+ * @author Adam Leszczynski (aleszczynski@bersler.com)
+ * @copyright Copyright (C) 2018-2025 Adam Leszczynski
+ * @license GPL-3.0
+ */
 
 #ifndef DB_TABLE_H_
 #define DB_TABLE_H_
@@ -34,22 +27,38 @@ namespace OpenLogReplicator {
     class Expression;
     class Token;
 
+    /**
+     * 数据库表类 - 表示Oracle数据库中的表对象
+     */
     class DbTable final {
     public:
+        /**
+         * 表选项枚举类型
+         */
         enum class OPTIONS : unsigned char {
-            DEFAULT = 0, DEBUG_TABLE = 1 << 0, SYSTEM_TABLE = 1 << 1, SCHEMA_TABLE = 1 << 2
+            DEFAULT = 0,         // 默认选项
+            DEBUG_TABLE = 1 << 0, // 调试表
+            SYSTEM_TABLE = 1 << 1, // 系统表
+            SCHEMA_TABLE = 1 << 2  // 架构表
         };
+        
+        /**
+         * 系统表类型枚举
+         */
         enum class TABLE : unsigned char {
             NONE, SYS_CCOL, SYS_CDEF, SYS_COL, SYS_DEFERRED_STG, SYS_ECOL, SYS_LOB, SYS_LOB_COMP_PART, SYS_LOB_FRAG, SYS_OBJ, SYS_TAB, SYS_TABPART,
             SYS_TABCOMPART, SYS_TABSUBPART, SYS_TS, SYS_USER, XDB_TTSET, XDB_XNM, XDB_XPT, XDB_XQN
         };
 
+        /** 上下文长度常量 */
         static constexpr uint VCONTEXT_LENGTH{30};
+        /** 参数长度常量 */
         static constexpr uint VPARAMETER_LENGTH{4000};
+        /** 属性长度常量 */
         static constexpr uint VPROPERTY_LENGTH{4000};
 
-        typeObj obj;
-        typeDataObj dataObj;
+        typeObj obj;           // 对象ID
+        typeDataObj dataObj;   // 数据对象ID
         typeUser user;
         typeCol cluCols;
         typeCol totalPk{0};

@@ -1,4 +1,4 @@
-/* Create main thread instances
+/* 主程序入口类实现
    Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
 
 This file is part of OpenLogReplicator.
@@ -71,12 +71,15 @@ along with OpenLogReplicator; see the file LICENSE;  If not see
 #endif /* LINK_LIBRARY_PROMETHEUS */
 
 namespace OpenLogReplicator {
+    
+    // 构造函数 - 初始化配置文件名和上下文
     OpenLogReplicator::OpenLogReplicator(std::string  newConfigFileName, Ctx* newCtx) :
             configFileName(std::move(newConfigFileName)),
             ctx(newCtx) {
         IntX::initializeBASE10();
     }
 
+    // 析构函数 - 清理资源
     OpenLogReplicator::~OpenLogReplicator() {
         if (replicator != nullptr)
             replicators.push_back(replicator);
@@ -110,20 +113,24 @@ namespace OpenLogReplicator {
             delete metadata;
         metadatas.clear();
 
+        // 清理语言区域信息
         for (Locales* locales: localess)
             delete locales;
         localess.clear();
 
+        // 清理内存管理器
         for (MemoryManager* memoryManager: memoryManagers)
             delete memoryManager;
         memoryManagers.clear();
 
+        // 清理配置文件资源
         if (fid != -1)
             close(fid);
         delete[] configFileBuffer;
         configFileBuffer = nullptr;
     }
 
+    // 主程序运行函数
     int OpenLogReplicator::run() {
         auto* locales = new Locales();
         localess.push_back(locales);
@@ -1061,6 +1068,7 @@ namespace OpenLogReplicator {
         return 0;
     }
 
+    // 处理路径映射配置
     void OpenLogReplicator::mainProcessMapping(const rapidjson::Value& readerJson) {
         if (readerJson.HasMember("path-mapping")) {
             const rapidjson::Value& pathMappingArrayJson = Ctx::getJsonFieldA(configFileName, readerJson, "path-mapping");

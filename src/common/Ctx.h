@@ -130,22 +130,24 @@ namespace OpenLogReplicator {
         bool bigEndian{false};
 
     public:
-        uint64_t memoryModulesHWM[MEMORY_COUNT]{0, 0, 0, 0, 0, 0};
+        // 内存模块名称数组
+        uint64_t memoryModulesHWM[MEMORY_COUNT]{0, 0, 0, 0, 0, 0};  // 各模块内存使用高水位标记
 
-        Metrics* metrics{nullptr};
-        Clock* clock{nullptr};
-        std::string versionStr;
-        std::unique_ptr<std::ofstream> dumpStream;
-        int64_t dbTimezone{BAD_TIMEZONE};
-        int64_t hostTimezone;
-        int64_t logTimezone;
+        // 全局组件指针
+        Metrics* metrics{nullptr};         // 指标收集器
+        Clock* clock{nullptr};             // 时钟
+        std::string versionStr;            // 版本字符串
+        std::unique_ptr<std::ofstream> dumpStream;  // 转储流
+        int64_t dbTimezone{BAD_TIMEZONE};  // 数据库时区
+        int64_t hostTimezone;              // 主机时区
+        int64_t logTimezone;               // 日志时区
 
-        // Memory buffers
-        uint64_t memoryChunksReadBufferMax{0};
-        uint64_t memoryChunksReadBufferMin{0};
-        uint64_t memoryChunksUnswapBufferMin{0};
-        uint64_t memoryChunksWriteBufferMax{0};
-        uint64_t memoryChunksWriteBufferMin{0};
+        // 内存缓冲区配置
+        uint64_t memoryChunksReadBufferMax{0};    // 读取缓冲区最大块数
+        uint64_t memoryChunksReadBufferMin{0};    // 读取缓冲区最小块数
+        uint64_t memoryChunksUnswapBufferMin{0};  // 内存交换缓冲区最小块数
+        uint64_t memoryChunksWriteBufferMax{0};   // 写入缓冲区最大块数
+        uint64_t memoryChunksWriteBufferMin{0};   // 写入缓冲区最小块数
 
         // Disk read buffers
         uint64_t bufferSizeMax{0};

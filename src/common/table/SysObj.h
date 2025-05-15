@@ -1,32 +1,31 @@
-/* Definition of schema SYS.OBJ$
-   Copyright (C) 2018-2025 Adam Leszczynski (aleszczynski@bersler.com)
+/**
+ * SYS.OBJ$表定义
+ * 
+ * 该文件定义了SysObj类，映射Oracle数据库中的SYS.OBJ$表结构。
+ * SYS.OBJ$表存储了数据库中所有对象的基本信息。
+ *
+ * @file SysObj.h
+ * @author Adam Leszczynski (aleszczynski@bersler.com)
+ * @copyright Copyright (C) 2018-2025 Adam Leszczynski
+ * @license GPL-3.0
+ */
 
-This file is part of OpenLogReplicator.
-
-OpenLogReplicator is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License as published
-by the Free Software Foundation; either version 3, or (at your option)
-any later version.
-
-OpenLogReplicator is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
-Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with OpenLogReplicator; see the file LICENSE;  If not see
-<http://www.gnu.org/licenses/>.  */
+#ifndef SYS_OBJ_H_
+#define SYS_OBJ_H_
 
 #include "../types/IntX.h"
 #include "../types/RowId.h"
 #include "../types/Types.h"
 
-#ifndef SYS_OBJ_H_
-#define SYS_OBJ_H_
-
 namespace OpenLogReplicator {
+    /**
+     * SYS.OBJ$表类 - 存储数据库对象信息
+     */
     class SysObj final {
     public:
+        /**
+         * 对象标志枚举类型
+         */
         enum class FLAGS : unsigned long long {
             NONE = 0,
             FDOM = 1ULL << 0, TEMPORARY = 1ULL << 1, SYSTEM_GENERATED = 1ULL << 2, UNBOUND = 1ULL << 3, SECONDARY = 1ULL << 4, IN_MEMORY_TEMP = 1ULL << 5,
@@ -39,8 +38,12 @@ namespace OpenLogReplicator {
             EXTENDED_DATA_LINK = 1ULL << 32, BINARY_COLLATION = 1ULL << 32, DISABLE_LOG_REPLICATION = 1ULL << 34
         };
 
+        /** 对象名称最大长度 */
         static constexpr uint NAME_LENGTH = 128;
 
+        /**
+         * 对象类型枚举类型
+         */
         enum class OBJTYPE : unsigned char {
             // 11.2
             NEXT_OBJECT = 0, INDEX = 1, TABLE = 2, CLUSTER = 3, VIEW = 4, SYNONYM = 5, SEQUENCE = 6, PROCEDURE = 7, FUNCTION = 8, PACKAGE = 9,
@@ -56,14 +59,14 @@ namespace OpenLogReplicator {
             QUEUE = 24
         };
 
-        RowId rowId;
-        typeUser owner{0};
-        typeObj obj{0};
-        typeDataObj dataObj{0};        // NULL
-        OBJTYPE type{OBJTYPE::NEXT_OBJECT};
-        std::string name;
-        IntX flags{0, 0};             // NULL
-        bool single{false};
+        RowId rowId;          // 行ID
+        typeUser owner{0};    // 所有者ID
+        typeObj obj{0};       // 对象ID
+        typeDataObj dataObj{0}; // 数据对象ID
+        OBJTYPE type{OBJTYPE::NEXT_OBJECT}; // 对象类型
+        std::string name;     // 对象名称
+        IntX flags{0, 0};     // 标志位
+        bool single{false};   // 是否为单一对象
 
         SysObj(RowId newRowId, typeUser newOwner, typeObj newObj, typeDataObj newDataObj, OBJTYPE newType, std::string newName, uint64_t newFlags1,
                uint64_t newFlags2, bool newSingle) :
@@ -159,6 +162,9 @@ namespace OpenLogReplicator {
                 dataObj(sysObj->dataObj) {
         }
 
+        /**
+         * SysObjNameKey类比较运算符
+         */
         bool operator<(const SysObjNameKey& other) const {
             if (owner < other.owner)
                 return true;

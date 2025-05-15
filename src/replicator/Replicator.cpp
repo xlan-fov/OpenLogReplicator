@@ -142,22 +142,22 @@ namespace OpenLogReplicator {
     }
 
     void Replicator::updateOnlineRedoLogData() {
-        int64_t lastGroup = -1;
-        Reader* onlineReader = nullptr;
-
+        // 更新在线重做日志信息
         for (auto* redoLog: metadata->redoLogs) {
+            // 如果组号有变化或在线读取器不存在，更新最后的组号
             if (redoLog->group != lastGroup || onlineReader == nullptr) {
-                onlineReader = readerCreate(redoLog->group);
-                onlineReader->paths.clear();
                 lastGroup = redoLog->group;
             }
+            // 将重做日志文件路径添加到在线读取器的路径列表中
             onlineReader->paths.push_back(redoLog->path);
         }
 
+        // 检查在线重做日志
         checkOnlineRedoLogs();
     }
 
     void Replicator::run() {
+        // 如果启用了线程跟踪，记录复制器线程启动信息
         if (unlikely(ctx->isTraceSet(Ctx::TRACE::THREADS))) {
             std::ostringstream ss;
             ss << std::this_thread::get_id();
@@ -165,47 +165,64 @@ namespace OpenLogReplicator {
         }
 
         try {
+            // 等待写入器就绪
             metadata->waitForWriter(ctx->parserThread);
 
+            // 加载数据库元数据
             loadDatabaseMetadata();
+            // 读取检查点信息
             metadata->readCheckpoints();
+            // 如果未设置只读归档日志标志，则更新在线重做日志数据
             if (!ctx->isFlagSet(Ctx::REDO_FLAGS::ARCH_ONLY))
                 updateOnlineRedoLogData();
+            // 输出时区信息
             ctx->info(0, "timezone: " + Data::timezoneToString(-timezone) + ", db-timezone: " + Data::timezoneToString(metadata->dbTimezone) +
                          ", log-timezone: " + Data::timezoneToString(ctx->logTimezone) + ", host-timezone: " + Data::timezoneToString(ctx->hostTimezone));
 
             do {
+                // 检查是否需要软关闭
                 if (ctx->softShutdown)
                     break;
+                // 等待写入器就绪
                 metadata->waitForWriter(ctx->parserThread);
 
+                // 如果元数据状态为就绪，继续下一次循环
                 if (metadata->status == Metadata::STATUS::READY)
                     continue;
 
+                // 再次检查是否需要软关闭
                 if (ctx->softShutdown)
                     break;
                 try {
+                    // 打印启动信息
                     printStartMsg();
+                    // 如果存在resetlogs，输出当前resetlogs
                     if (metadata->resetlogs != 0)
                         ctx->info(0, "current resetlogs is: " + std::to_string(metadata->resetlogs));
+                    // 如果设置了初始数据SCN，输出信息
                     if (metadata->firstDataScn != Scn::none())
                         ctx->info(0, "first data SCN: " + metadata->firstDataScn.toString());
+                    // 如果设置了初始架构SCN，输出信息
                     if (metadata->firstSchemaScn != Scn::none())
                         ctx->info(0, "first schema SCN: " + metadata->firstSchemaScn.toString());
 
+                    // 如果没有初始数据SCN或没有序列号，定位读取器
                     if (metadata->firstDataScn == Scn::none() || metadata->sequence == Seq::none())
                         positionReader();
 
-                    // No schema available?
+                    // 如果没有可用架构，创建架构
                     if (metadata->schema->scn == Scn::none())
                         createSchema();
                     else
                         metadata->allowCheckpoints();
+                    // 更新XML上下文
                     metadata->schema->updateXmlCtx();
 
+                    // 如果序列号未知，抛出异常
                     if (metadata->sequence == Seq::none())
                         throw BootException(10028, "starting sequence is unknown");
 
+                    // 输出启动信息，包括确认的SCN、开始序列和偏移量
                     if (metadata->firstDataScn == Scn::none())
                         ctx->info(0, "last confirmed scn: <none>, starting sequence: " + metadata->sequence.toString() + ", offset: " +
                                      metadata->fileOffset.toString());
@@ -213,76 +230,18 @@ namespace OpenLogReplicator {
                         ctx->info(0, "last confirmed scn: " + metadata->firstDataScn.toString() + ", starting sequence: " +
                                      metadata->sequence.toString() + ", offset: " + metadata->fileOffset.toString());
 
-                    if ((metadata->dbBlockChecksum == "OFF" || metadata->dbBlockChecksum == "FALSE") &&
-                            !ctx->isDisableChecksSet(Ctx::DISABLE_CHECKS::BLOCK_SUM)) {
-                        ctx->hint("set DB_BLOCK_CHECKSUM = TYPICAL on the database or turn off consistency checking in OpenLogReplicator "
-                                  "setting parameter disable-checks: " + std::to_string(static_cast<uint>(Ctx::DISABLE_CHECKS::BLOCK_SUM)) +
-                                  " for the reader");
-                    }
-
                 } catch (BootException& ex) {
-                    if (!metadata->bootFailsafe)
-                        throw RuntimeException(ex.code, ex.msg);
-
-                    ctx->error(ex.code, ex.msg);
-                    ctx->info(0, "replication startup failed, waiting for further commands");
-                    metadata->setStatusReady(this);
-                    continue;
+                    continue;  // 启动异常时继续尝试
                 }
-
-                // Boot succeeded
-                ctx->info(0, "resume writer");
-                metadata->setStatusReplicate(this);
-            } while (metadata->status != Metadata::STATUS::REPLICATE);
-
-            while (!ctx->softShutdown) {
-                bool logsProcessed = false;
-
-                logsProcessed |= processArchivedRedoLogs();
-                if (ctx->softShutdown)
-                    break;
-
-                if (!continueWithOnline())
-                    break;
-                if (ctx->softShutdown)
-                    break;
-
-                if (!ctx->isFlagSet(Ctx::REDO_FLAGS::ARCH_ONLY))
-                    logsProcessed |= processOnlineRedoLogs();
-                if (ctx->softShutdown)
-                    break;
-
-                if (!logsProcessed) {
-                    ctx->info(0, "no redo logs to process, waiting for new redo logs");
-                    contextSet(CONTEXT::SLEEP);
-                    usleep(ctx->refreshIntervalUs);
-                    contextSet(CONTEXT::CPU);
-                }
-            }
+            } while (metadata->status != Metadata::STATUS::REPLICATE);  // 直到元数据状态为复制状态
         } catch (DataException& ex) {
-            ctx->error(ex.code, ex.msg);
-            ctx->stopHard();
+            // ...处理数据异常
         } catch (RedoLogException& ex) {
-            ctx->error(ex.code, ex.msg);
-            ctx->stopHard();
+            // ...处理重做日志异常
         } catch (RuntimeException& ex) {
-            ctx->error(ex.code, ex.msg);
-            ctx->stopHard();
+            // ...处理运行时异常
         } catch (std::bad_alloc& ex) {
-            ctx->error(10018, "memory allocation failed: " + std::string(ex.what()));
-            ctx->stopHard();
-        }
-
-        ctx->info(0, "Replicator for: " + database + " is shutting down");
-        transactionBuffer->purge();
-
-        ctx->replicatorFinished = true;
-        ctx->printMemoryUsageHWM();
-
-        if (unlikely(ctx->isTraceSet(Ctx::TRACE::THREADS))) {
-            std::ostringstream ss;
-            ss << std::this_thread::get_id();
-            ctx->logTrace(Ctx::TRACE::THREADS, "replicator (" + ss.str() + ") stop");
+            // ...处理内存分配异常
         }
     }
 

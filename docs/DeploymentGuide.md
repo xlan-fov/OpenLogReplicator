@@ -247,3 +247,78 @@ sudo nano /etc/systemd/system/openlogreplicator.service
 
 内容如下：
 
+```ini
+[Unit]
+Description=OpenLogReplicator Service
+After=network.target
+
+[Service]
+ExecStart=/path/to/OpenLogReplicator -f /path/to/config.json
+Restart=always
+User=nobody
+Group=nogroup
+
+[Install]
+WantedBy=multi-user.target
+```
+
+保存并退出后，执行以下命令以启用和启动服务：
+
+```bash
+# 重新加载 systemd 配置
+sudo systemctl daemon-reload
+
+# 启用服务
+sudo systemctl enable openlogreplicator
+
+# 启动服务
+sudo systemctl start openlogreplicator
+```
+
+### 6.4 检查服务状态
+
+可以使用以下命令检查服务状态：
+
+```bash
+sudo systemctl status openlogreplicator
+```
+
+## 7. 日志和监控
+
+OpenLogReplicator 会生成日志文件，默认路径为 `logs/` 目录。可以通过配置文件中的 `log-level` 参数调整日志级别。
+
+### 7.1 日志级别
+
+- 0: 关闭日志
+- 1: 错误
+- 2: 警告
+- 3: 信息
+- 4: 调试
+
+### 7.2 监控
+
+如果启用了 Prometheus 支持，可以通过 Prometheus 监控 OpenLogReplicator 的运行状态。具体配置请参考 Prometheus 官方文档。
+
+## 8. 常见问题
+
+### 8.1 无法连接到数据库
+
+请检查以下内容：
+
+- 数据库是否正常运行
+- 配置文件中的数据库连接信息是否正确
+- 网络连接是否正常
+
+### 8.2 性能问题
+
+请检查以下内容：
+
+- 硬件资源是否充足（CPU、内存、磁盘）
+- 配置文件中的内存设置是否合理
+- 是否有其他进程占用大量资源
+
+### 8.3 日志文件过大
+
+请定期清理日志文件，或在配置文件中调整 `max-file-size` 参数。
+
+

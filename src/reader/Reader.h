@@ -71,47 +71,47 @@ namespace OpenLogReplicator {
         Time firstTimeHeader{0};               // 首次时间头
         Scn firstScn{Scn::none()};             // 首个SCN
         Scn firstScnHeader{Scn::none()};       // 头部首个SCN
-        Scn nextScn{Scn::none()};              // 下一个SCN
-        Scn nextScnHeader{Scn::none()};        // 头部下一个SCN
-        Time nextTime{0};                      // 下一个时间
-        uint blockSize{0};                     // 块大小
-        uint64_t sumRead{0};                   // 读取总数
-        uint64_t sumTime{0};                   // 时间总数
-        uint64_t bufferScan{0};                // 缓冲区扫描
-        uint lastRead{0};                      // 最后读取
-        time_ut lastReadTime{0};               // 最后读取时间
-        time_ut readTime{0};                   // 读取时间
-        time_ut loopTime{0};                   // 循环时间
+        Scn nextScn{Scn::none()};              // 下一个SCN - 日志文件中下一个可处理的系统变更号
+        Scn nextScnHeader{Scn::none()};        // 头部下一个SCN - 从日志文件头部读取的下一个SCN值
+        Time nextTime{0};                      // 下一个时间 - 下一个记录的时间戳
+        uint blockSize{0};                     // 块大小 - 重做日志文件的块大小，通常为512字节的倍数
+        uint64_t sumRead{0};                   // 读取总数 - 已读取的数据总字节数
+        uint64_t sumTime{0};                   // 时间总数 - 读取操作消耗的总时间
+        uint64_t bufferScan{0};                // 缓冲区扫描 - 缓冲区被扫描的次数
+        uint lastRead{0};                      // 最后读取 - 最后一次读取的字节数
+        time_ut lastReadTime{0};               // 最后读取时间 - 最后一次读取操作的时间戳
+        time_ut readTime{0};                   // 读取时间 - 当前读取操作的时间戳
+        time_ut loopTime{0};                   // 循环时间 - 主循环迭代的时间戳
 
         // 同步和线程控制
-        std::mutex mtx;                        // 互斥锁
-        std::atomic<uint64_t> bufferStart{0};  // 缓冲区开始位置
-        std::atomic<uint64_t> bufferEnd{0};    // 缓冲区结束位置
-        std::atomic<STATUS> status{STATUS::SLEEPING}; // 状态
-        std::atomic<REDO_CODE> ret{REDO_CODE::OK}; // 返回码
-        std::condition_variable condBufferFull;    // 缓冲区满条件变量
-        std::condition_variable condReaderSleeping; // 读取器睡眠条件变量
-        std::condition_variable condParserSleeping; // 解析器睡眠条件变量
+        std::mutex mtx;                        // 互斥锁 - 用于保护读取器共享资源的访问
+        std::atomic<uint64_t> bufferStart{0};  // 缓冲区开始位置 - 当前读取缓冲区的起始偏移量
+        std::atomic<uint64_t> bufferEnd{0};    // 缓冲区结束位置 - 当前读取缓冲区的结束偏移量
+        std::atomic<STATUS> status{STATUS::SLEEPING}; // 状态 - 读取器当前的工作状态(睡眠、运行等)
+        std::atomic<REDO_CODE> ret{REDO_CODE::OK}; // 返回码 - 上一次操作的返回状态码
+        std::condition_variable condBufferFull;    // 缓冲区满条件变量 - 用于通知缓冲区已满
+        std::condition_variable condReaderSleeping; // 读取器睡眠条件变量 - 用于唤醒睡眠中的读取器
+        std::condition_variable condParserSleeping; // 解析器睡眠条件变量 - 用于唤醒睡眠中的解析器
 
         // 虚拟方法，需由子类实现
-        virtual void redoClose() = 0;                    // 关闭重做日志
-        virtual REDO_CODE redoOpen() = 0;                // 打开重做日志
-        virtual int redoRead(uint8_t* buf, uint64_t offset, uint size) = 0; // 读取重做日志
-        virtual uint readSize(uint prevRead);            // 获取读取大小
-        virtual REDO_CODE reloadHeaderRead();            // 重新读取头部
+        virtual void redoClose() = 0;                    // 关闭重做日志 - 关闭当前打开的重做日志文件
+        virtual REDO_CODE redoOpen() = 0;                // 打开重做日志 - 打开一个新的重做日志文件
+        virtual int redoRead(uint8_t* buf, uint64_t offset, uint size) = 0; // 读取重做日志 - 从指定偏移量读取数据
+        virtual uint readSize(uint prevRead);            // 获取读取大小 - 计算下一次读取的数据大小
+        virtual REDO_CODE reloadHeaderRead();            // 重新读取头部 - 重新加载重做日志文件的头部信息
 
         // 实用方法
-        REDO_CODE checkBlockHeader(uint8_t* buffer, typeBlk blockNumber, bool showHint); // 检查块头
-        REDO_CODE reloadHeader();                        // 重新加载头部
-        bool read1();                                    // 读取1
-        bool read2();                                    // 读取2
-        void mainLoop();                                 // 主循环
+        REDO_CODE checkBlockHeader(uint8_t* buffer, typeBlk blockNumber, bool showHint); // 检查块头 - 验证块头的有效性和一致性
+        REDO_CODE reloadHeader();                        // 重新加载头部 - 重新加载并解析日志文件头部
+        bool read1();                                    // 读取1 - 第一阶段读取操作
+        bool read2();                                    // 读取2 - 第二阶段读取操作
+        void mainLoop();                                 // 主循环 - 读取器的主工作循环
 
     public:
         const static char* REDO_MSG[static_cast<uint>(REDO_CODE::CNT)];
-        uint8_t** redoBufferList{nullptr};
-        std::vector<std::string> paths;
-        std::string fileName;
+        uint8_t** redoBufferList{nullptr};               // 重做缓冲区列表 - 用于存储读取的数据块
+        std::vector<std::string> paths;                  // 路径列表 - 重做日志文件的路径列表
+        std::string fileName;                            // 文件名 - 当前正在处理的文件名
 
         Reader(Ctx* newCtx, std::string newAlias, std::string newDatabase, int newGroup, bool newConfiguredBlockSum);
         ~Reader() override;

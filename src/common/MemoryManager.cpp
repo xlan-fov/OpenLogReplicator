@@ -178,18 +178,20 @@ namespace OpenLogReplicator {
             if (S_ISDIR(fileStat.st_mode))
                 continue;
 
-            //ctx->warning(0, "checking file name: " + fileName);
+            // 检查文件名是否是交换文件(.swap扩展名)
             const std::string suffix(".swap");
             if (fileName.length() < suffix.length() || fileName.substr(fileName.length() - suffix.length(), fileName.length()) != suffix)
                 continue;
 
+            // 删除旧的交换文件，这些文件可能是上次运行时残留的
             if (!silent)
-                ctx->warning(10067, "deleting old swap file from previous execution: " + fullName);
+                ctx->warning(10067, "删除上次执行时残留的交换文件: " + fullName);
 
+            // 尝试删除文件，如果失败则根据silent参数决定是返回还是抛出异常
             if (unlink(fullName.c_str()) != 0) {
                 if (silent)
                     return;
-                throw RuntimeException(10010, "file: " + fullName + " - delete returned: " + strerror(errno));
+                throw RuntimeException(10010, "文件: " + fullName + " - 删除操作返回错误: " + strerror(errno));
             }
         }
         closedir(dir);

@@ -84,6 +84,14 @@ namespace OpenLogReplicator {
         /** 析构函数 */
         ~Scn() = default;
 
+        /**
+         * 转换SCN为48位格式字符串
+         * 
+         * 将SCN转换为0xXXXX.XXXXXXXX格式的字符串表示，
+         * 这是Oracle 12c之前版本常用的SCN表示格式。
+         * 
+         * @return 格式化的SCN字符串
+         */
         [[nodiscard]] std::string to48() const {
             std::stringstream ss;
             ss << "0x" << std::setfill('0') << std::setw(4) << std::hex << (static_cast<uint32_t>(data >> 32) & 0xFFFF) <<
@@ -91,12 +99,27 @@ namespace OpenLogReplicator {
             return ss.str();
         }
 
+        /**
+         * 转换SCN为64位十六进制格式字符串
+         * 
+         * 将SCN转换为完整的64位十六进制字符串表示(0xXXXXXXXXXXXXXXXX)。
+         * 
+         * @return 64位十六进制格式的SCN字符串
+         */
         [[nodiscard]] std::string to64() const {
             std::stringstream ss;
             ss << "0x" << std::setfill('0') << std::setw(16) << std::hex << data;
             return ss.str();
         }
 
+        /**
+         * 转换SCN为分段64位十六进制格式
+         * 
+         * 将SCN转换为0xXXXX.XXXX.XXXXXXXX格式的字符串，
+         * 这种格式在某些Oracle版本的日志中使用。
+         * 
+         * @return 分段格式的SCN字符串
+         */
         [[nodiscard]] std::string to64D() const {
             std::stringstream ss;
             ss << "0x" << std::setfill('0') << std::setw(4) << std::hex << (static_cast<uint32_t>(data >> 48) & 0xFFFF) <<

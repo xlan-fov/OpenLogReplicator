@@ -45,26 +45,45 @@ namespace OpenLogReplicator {
         };
 
         enum class INTERVAL_DTS_FORMAT : unsigned char {
-            UNIX_NANO, UNIX_MICRO, UNIX_MILLI, UNIX, UNIX_NANO_STRING, UNIX_MICRO_STRING, UNIX_MILLI_STRING, UNIX_STRING, ISO8601_SPACE, ISO8601_COMMA,
-            ISO8601_DASH
+            UNIX_NANO,          // Unix纳秒时间戳
+            UNIX_MICRO,         // Unix微秒时间戳
+            UNIX_MILLI,         // Unix毫秒时间戳
+            UNIX,               // Unix秒时间戳
+            UNIX_NANO_STRING,   // 字符串格式的Unix纳秒时间戳
+            UNIX_MICRO_STRING,  // 字符串格式的Unix微秒时间戳
+            UNIX_MILLI_STRING,  // 字符串格式的Unix毫秒时间戳
+            UNIX_STRING,        // 字符串格式的Unix秒时间戳
+            ISO8601_SPACE,      // ISO8601格式，使用空格分隔日期和时间
+            ISO8601_COMMA,      // ISO8601格式，使用逗号分隔日期和时间
+            ISO8601_DASH        // ISO8601格式，使用破折号分隔日期和时间
         };
 
         enum class INTERVAL_YTM_FORMAT : unsigned char {
-            MONTHS, MONTHS_STRING, STRING_YM_SPACE, STRING_YM_COMMA, STRING_YM_DASH
+            MONTHS,             // 以月为单位的纯数字表示
+            MONTHS_STRING,      // 以月为单位的字符串表示
+            STRING_YM_SPACE,    // 年月格式，使用空格分隔
+            STRING_YM_COMMA,    // 年月格式，使用逗号分隔
+            STRING_YM_DASH      // 年月格式，使用破折号分隔
         };
 
         enum class MESSAGE_FORMAT : unsigned char {
-            DEFAULT = 0, FULL = 1 << 0, ADD_SEQUENCES = 1 << 1,
-            // JSON only:
-            SKIP_BEGIN = 1 << 2, SKIP_COMMIT = 1 << 3, ADD_OFFSET = 1 << 4
+            DEFAULT = 0,                // 默认格式
+            FULL = 1 << 0,              // 完整格式，包含所有可用信息
+            ADD_SEQUENCES = 1 << 1,     // 添加序列号信息
+            // JSON格式专用选项：
+            SKIP_BEGIN = 1 << 2,        // 跳过BEGIN事务标记
+            SKIP_COMMIT = 1 << 3,       // 跳过COMMIT事务标记
+            ADD_OFFSET = 1 << 4         // 添加偏移量信息
         };
 
         enum class RID_FORMAT : unsigned char {
-            SKIP, TEXT
+            SKIP,               // 跳过行ID，不包含在输出中
+            TEXT                // 以文本形式包含行ID
         };
 
         enum class SCN_FORMAT : unsigned char {
-            NUMERIC, TEXT_HEX
+            NUMERIC,            // SCN以数字形式表示
+            TEXT_HEX            // SCN以十六进制文本形式表示
         };
 
         enum class SCN_TYPE : unsigned char {

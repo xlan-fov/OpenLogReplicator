@@ -191,65 +191,97 @@ namespace OpenLogReplicator {
         /**
          * 添加路径映射
          * 
-         * @param source 源路径
-         * @param target 目标路径
+         * 此方法用于添加源路径和目标路径的映射关系，便于系统在不同环境中处理文件路径。
+         * 当系统需要查找文件时，会根据这些映射规则将源路径转换为目标路径。
+         * 
+         * @param source 源路径 - 原始的文件路径
+         * @param target 目标路径 - 映射后的文件路径
          */
         void addPathMapping(std::string source, std::string target);
         
         /**
          * 添加重做日志批次
          * 
-         * @param path 重做日志路径
+         * 将指定的重做日志文件路径添加到批处理列表中，这些日志将按顺序处理。
+         * 批处理模式适用于离线分析或特定顺序的日志处理场景。
+         * 
+         * @param path 重做日志路径 - 要添加到批处理队列的日志文件路径
          */
         void addRedoLogsBatch(std::string path);
         
         /**
          * 从路径获取归档日志
          * 
-         * @param replicator 复制器对象
+         * 该方法从文件系统路径中扫描并获取归档日志文件。系统会根据配置的路径映射
+         * 和日志格式，识别符合条件的归档日志文件，并将它们添加到处理队列中。
+         * 这种方式适用于从本地文件系统或挂载的网络存储中读取归档日志。
+         * 
+         * @param replicator 复制器对象 - 用于访问复制器的状态和配置
          */
         static void archGetLogPath(Replicator* replicator);
         
         /**
          * 从列表获取归档日志
          * 
-         * @param replicator 复制器对象
+         * 该方法从预定义的列表中获取归档日志文件，而不是从文件系统路径扫描。
+         * 这适用于已知确切的日志文件列表，或者需要按特定顺序处理日志的场景。
+         * 系统将按照列表中的顺序处理这些日志文件。
+         * 
+         * @param replicator 复制器对象 - 用于访问复制器的状态和配置
          */
         static void archGetLogList(Replicator* replicator);
         
         /**
-         * 应用路径映射
+         * 应用路径映射规则
          * 
-         * @param path 路径引用
+         * 将路径映射规则应用到给定的文件路径上，根据配置的映射关系
+         * 转换路径。这使得系统能够处理不同环境间的路径差异。
+         * 
+         * @param path 输入/输出参数，包含要转换的路径，函数执行后会被更新为映射后的路径
          */
         void applyMapping(std::string& path);
         
         /**
          * 更新重置日志信息
+         * 
+         * 更新数据库重置日志(resetlogs)信息，这在数据库重置或恢复操作后非常重要。
+         * 系统需要跟踪这些信息以正确处理日志序列变化。
          */
         void updateResetlogs();
         
         /**
-         * 唤醒线程
+         * 唤醒复制器线程
+         * 
+         * 唤醒处于等待状态的复制器线程，使其继续处理工作。
+         * 此方法通常由其他线程调用以触发复制器的活动。
          */
         void wakeUp() override;
         
         /**
-         * 打印启动信息
+         * 打印启动消息
+         * 
+         * 显示复制器启动时的相关信息，包括模式、配置参数等。
+         * 这有助于用户了解复制器的当前工作状态。
          */
         void printStartMsg() const;
         
         /**
          * 处理归档重做日志
          * 
-         * @return 如果处理了日志则返回true
+         * 处理已归档的重做日志文件。系统会按照特定顺序读取和分析这些日志，
+         * 并根据其内容更新数据库状态。
+         * 
+         * @return 如果成功处理了一个或多个日志文件返回true，否则返回false
          */
         bool processArchivedRedoLogs();
         
         /**
          * 处理在线重做日志
          * 
-         * @return 如果处理了日志则返回true
+         * 处理当前活动的(在线)重做日志文件。这些日志正在被数据库系统写入，
+         * 复制器会实时读取并处理这些变更。
+         * 
+         * @return 如果成功处理了一个或多个在线日志返回true，否则返回false
          */
         bool processOnlineRedoLogs();
 
